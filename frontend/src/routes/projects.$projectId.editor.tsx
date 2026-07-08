@@ -31,9 +31,13 @@ function EditorPage() {
     queryFn: () => getEditorProject(projectId),
   });
 
+  // Re-seed the store whenever the server data changes — not only when the
+  // project id differs. The pipeline persists scenes after the editor first
+  // loads (0 scenes), so a later refetch must be able to fill them in; an
+  // id-only guard would leave the editor stuck showing the empty first load.
   useEffect(() => {
-    if (data && (!project || project.id !== data.id)) setProject(data);
-  }, [data, project, setProject]);
+    if (data) setProject(data);
+  }, [data, setProject]);
 
   const [previewHtml, setPreviewHtml] = useState<string>("");
   useEffect(() => {
