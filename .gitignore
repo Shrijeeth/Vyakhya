@@ -1,0 +1,39 @@
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Node
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+.pnpm-store/
+npm-debug.log*
+pnpm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Data / artifacts
+/data/
+/storage/
+*.mp4
+*.webm
+!docs/**/*.mp4
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.log
