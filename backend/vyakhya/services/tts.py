@@ -22,8 +22,33 @@ from vyakhya.services.crypto import get_encryptor
 
 log = get_logger(__name__)
 
-# Deepgram caps speak input; keep clips scene-sized anyway.
+# Deepgram caps speak input at 2000 chars; longer narration is synthesized in
+# sentence-boundary chunks and the MP3 frames concatenated (same codec/rate),
+# so the ENTIRE narration is always voiced — never truncated.
 _MAX_TEXT = 1900
+
+
+def _chunks(text: str, limit: int = _MAX_TEXT) -> list[str]:
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return [text]
+    import re
+
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    out: list[str] = []
+    cur = ""
+    for sent in sentences:
+        while len(sent) > limit:  # pathological run-on: hard-split
+            out.append(sent[:limit])
+            sent = sent[limit:]
+        if len(cur) + len(sent) + 1 > limit and cur:
+            out.append(cur)
+            cur = sent
+        else:
+            cur = f"{cur} {sent}".strip()
+    if cur:
+        out.append(cur)
+    return out
 
 
 async def resolve_tts_connection(session: Any) -> tuple[ProviderConnection, str] | None:
@@ -48,10 +73,17 @@ async def resolve_tts_connection(session: Any) -> tuple[ProviderConnection, str]
 
 
 async def synthesize(text: str, conn: ProviderConnection, api_key: str) -> bytes:
-    """Text → MP3 bytes via the connection's provider."""
-    text = text.strip()[:_MAX_TEXT]
+    """Full text → MP3 bytes via the connection's provider (chunked if long)."""
+    text = text.strip()
     if not text:
         raise ValueError("empty narration text")
+    parts: list[bytes] = []
+    for chunk in _chunks(text):
+        parts.append(await _synthesize_one(chunk, conn, api_key))
+    return b"".join(parts)
+
+
+async def _synthesize_one(text: str, conn: ProviderConnection, api_key: str) -> bytes:
     if conn.provider == ProviderId.DEEPGRAM:
         model = conn.model or "aura-2-thalia-en"
         url = f"https://api.deepgram.com/v1/speak?model={model}&encoding=mp3"

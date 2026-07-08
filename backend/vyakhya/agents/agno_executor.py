@@ -170,6 +170,9 @@ _DESIGNER_INSTRUCTIONS = [
     "report, article, spec, book chapter…) into an explainer video rendered "
     "by HyperFrames. You are a motion designer, not a slide-deck generator — "
     "every project gets its own art direction.",
+    "When the prompt carries a USER BRIEF, it is the highest-priority "
+    "instruction: its requested story structure, tone, and style override "
+    "every default below. Re-read it before each scene.",
     "First read the HyperFrames skills (get_skill_instructions for "
     "'hyperframes-core', 'faceless-explainer', 'hyperframes-animation', "
     "'hyperframes-creative') and design with those techniques.",
@@ -265,6 +268,18 @@ _MAX_VERIFY_ROUNDS = 3
 
 # Final cut must land within this fraction of the requested length.
 _DURATION_TOLERANCE = 0.15
+
+
+def _brief_block(user_prompt: str) -> str:
+    """The user's creative brief, prepended to EVERY designer prompt (initial
+    and all revisions) so it is never diluted by later feedback."""
+    if not user_prompt:
+        return ""
+    return (
+        "USER BRIEF — HIGHEST PRIORITY, overrides all defaults. Follow its "
+        "story structure, tone, and style in every scene:\n"
+        f"{user_prompt}\n\n"
+    )
 
 
 def _length_instruction(target_min: int, tts: bool) -> str:
@@ -657,13 +672,11 @@ class AgnoPipelineExecutor:
                     research_block = f"\n\nWeb research context:\n{research.summary}\n{notes}" + (
                         f"\nAnalogies you may use:\n{analogies}" if analogies else ""
                     )
-                user_block = (
-                    f"\n\nUSER GUIDANCE (must be honored):\n{user_prompt}" if user_prompt else ""
-                )
                 prompt = (
+                    f"{_brief_block(user_prompt)}"
                     f"Design the explainer scenes for this document.\n"
                     f"Title: {title}\nAudience: {AudienceLevel(audience).value}\n"
-                    f"Language: {language}{user_block}{figures_block}{research_block}\n\n"
+                    f"Language: {language}{figures_block}{research_block}\n\n"
                     f"Document text:\n{paper_text}"
                 )
                 last_error = "model returned no parseable scenes"
@@ -698,6 +711,65 @@ class AgnoPipelineExecutor:
                     f"[{label}] produced {len(scenes_payload)} scenes",
                     agent_id,
                 )
+
+                # Agentic length fit — HERE, before verification, so every scene
+                # the designer adds/trims still goes through the fact verifier
+                # and the visual review. The designer fixes length itself
+                # (adding grounded scenes / merging), never a mechanical rescale.
+                target_ms = max(1, target_min) * 60_000
+                for fit_round in range(1, 4):
+                    total_ms = sum(s.duration_ms for s in doc.scenes)
+                    deviation = abs(total_ms - target_ms) / target_ms
+                    if deviation <= _DURATION_TOLERANCE:
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] cut is {total_ms / 1000:.0f}s — within tolerance "
+                            f"of the {target_min} min target",
+                            agent_id,
+                        )
+                        break
+                    direction = (
+                        "too SHORT — add new scenes covering more of the document "
+                        "(each grounded with citations), or deepen existing ones"
+                        if total_ms < target_ms
+                        else "too LONG — merge or drop the least important scenes"
+                    )
+                    yield _event(
+                        PipelineEventType.LOG,
+                        f"[{label}] cut is {total_ms / 1000:.0f}s vs {target_ms / 1000:.0f}s "
+                        f"target ({direction.split(' — ')[0]}) — asking for a fix "
+                        f"(round {fit_round}/3)",
+                        agent_id,
+                    )
+                    fit_prompt = (
+                        f"{_brief_block(user_prompt)}"
+                        f"Your scene list totals {total_ms} ms but the video must total "
+                        f"about {target_ms} ms. It is {direction}. Keep every existing "
+                        f"scene's content intact where possible and return the FULL "
+                        f"revised scene list.\n\nCurrent scenes:\n{_scenes_json(doc)}\n\n"
+                        f"Document text:\n{paper_text}"
+                    )
+                    try:
+                        fres = await designer.arun(input=fit_prompt, stream=False)
+                        fixed = _coerce_document(fres.content if fres else None)
+                    except Exception as exc:  # noqa: BLE001 - keep current cut
+                        log.warning("length-fit round %d failed: %s", fit_round, exc)
+                        fixed = None
+                    if fixed is None or not fixed.scenes:
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] length fix produced no valid scenes — keeping cut",
+                            agent_id,
+                        )
+                        break
+                    doc = fixed
+                    scenes_payload = _dump_scenes(doc, figure_map)
+                    yield _event(
+                        PipelineEventType.LOG,
+                        f"[{label}] adjusted → {len(doc.scenes)} scenes, "
+                        f"{sum(s.duration_ms for s in doc.scenes) / 1000:.0f}s",
+                        agent_id,
+                    )
 
             if agent_id is AgentId.VERIFIER and doc is not None:
                 # Agentic verify → revise loop: the verifier grounds every claim
@@ -763,6 +835,7 @@ class AgnoPipelineExecutor:
                         if f.level != "pass"
                     )
                     revision_prompt = (
+                        f"{_brief_block(user_prompt)}"
                         f"Revise your scenes. The verifier rejected them.\n\n"
                         f"Verifier notes:\n{report.revision_notes}\n\n"
                         f"Flagged claims:\n{fail_lines}\n\n"
@@ -807,8 +880,14 @@ class AgnoPipelineExecutor:
                 # Design review with EYES: the render service screenshots every
                 # scene and a vision reviewer judges the actual frames —
                 # overlapping/clipped/empty/incomplete scenes go back to the
-                # designer with concrete CSS fixes.
-                for vround in range(1, 4):
+                # designer with concrete CSS fixes. The loop runs until the
+                # reviewer approves or two consecutive rounds fix nothing
+                # (stall), with a hard cost cap.
+                prev_majors: int | None = None
+                stalled = 0
+                vround = 0
+                while vround < 8:
+                    vround += 1
                     scenes_payload = _dump_scenes(doc, figure_map)
                     try:
                         images = await _review_images(
@@ -844,7 +923,17 @@ class AgnoPipelineExecutor:
                         dres = await design_reviewer.arun(
                             input=(
                                 "Review these rendered scene screenshots (images are "
-                                "in scene order, 0-based).\n\nScenes:\n" + scene_lines
+                                "in scene order, 0-based).\n\n"
+                                + (
+                                    "The user's creative brief (the frames MUST honor "
+                                    "its story and style; flag scenes that ignore it):\n"
+                                    + user_prompt
+                                    + "\n\n"
+                                    if user_prompt
+                                    else ""
+                                )
+                                + "Scenes:\n"
+                                + scene_lines
                             ),
                             images=images,
                             stream=False,
@@ -886,10 +975,25 @@ class AgnoPipelineExecutor:
                             PipelineEventType.LOG, f"[{label}] visual design approved", agent_id
                         )
                         break
-                    if vround == 2:
+                    # Stall detection: a round "made progress" only if it
+                    # resolved at least one major issue vs the previous round.
+                    if prev_majors is not None and len(majors) >= prev_majors:
+                        stalled += 1
+                    else:
+                        stalled = 0
+                    prev_majors = len(majors)
+                    if stalled >= 2:
                         yield _event(
                             PipelineEventType.LOG,
-                            f"[{label}] visual review rounds exhausted — proceeding with "
+                            f"[{label}] two review rounds with no progress — proceeding "
+                            f"with {len(majors)} unresolved issue(s)",
+                            agent_id,
+                        )
+                        break
+                    if vround >= 8:
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] review round cap reached — proceeding with "
                             f"{len(majors)} unresolved issue(s)",
                             agent_id,
                         )
@@ -899,6 +1003,7 @@ class AgnoPipelineExecutor:
                         for i in dreport.issues
                     )
                     visual_prompt = (
+                        f"{_brief_block(user_prompt)}"
                         "The art director reviewed SCREENSHOTS of your rendered scenes "
                         "and rejected the cut. Fix EXACTLY the flagged scenes' html/css "
                         "(layout, overlap, sizing, backgrounds) and keep everything else "
@@ -931,61 +1036,15 @@ class AgnoPipelineExecutor:
                         break
 
             if agent_id is AgentId.ASSEMBLER and doc is not None:
-                # Agentic length fit: when the cut misses the requested length,
-                # the DESIGNER fixes it — adding grounded scenes when short,
-                # merging/trimming when long. Never a mechanical rescale.
-                target_ms = max(1, target_min) * 60_000
-                for fit_round in range(1, 3):
-                    total_ms = sum(s.duration_ms for s in doc.scenes)
-                    deviation = abs(total_ms - target_ms) / target_ms
-                    if deviation <= _DURATION_TOLERANCE:
-                        yield _event(
-                            PipelineEventType.LOG,
-                            f"[{label}] cut is {total_ms / 1000:.0f}s — within tolerance "
-                            f"of the {target_min} min target",
-                            agent_id,
-                        )
-                        break
-                    direction = (
-                        "too SHORT — add new scenes covering more of the document "
-                        "(each grounded with citations), or deepen existing ones"
-                        if total_ms < target_ms
-                        else "too LONG — merge or drop the least important scenes"
-                    )
-                    yield _event(
-                        PipelineEventType.LOG,
-                        f"[{label}] cut is {total_ms / 1000:.0f}s vs {target_ms / 1000:.0f}s "
-                        f"target ({direction.split(' — ')[0]}) — asking the designer to fix",
-                        agent_id,
-                    )
-                    fit_prompt = (
-                        f"Your scene list totals {total_ms} ms but the video must total "
-                        f"about {target_ms} ms. It is {direction}. Keep every verified "
-                        f"scene's content intact where possible and return the FULL "
-                        f"revised scene list.\n\nCurrent scenes:\n{_scenes_json(doc)}\n\n"
-                        f"Document text:\n{paper_text}"
-                    )
-                    try:
-                        fres = await designer.arun(input=fit_prompt, stream=False)
-                        fixed = _coerce_document(fres.content if fres else None)
-                    except Exception as exc:  # noqa: BLE001 - keep current cut
-                        log.warning("length-fit round %d failed: %s", fit_round, exc)
-                        fixed = None
-                    if fixed is None or not fixed.scenes:
-                        yield _event(
-                            PipelineEventType.LOG,
-                            f"[{label}] length fix produced no valid scenes — keeping cut",
-                            agent_id,
-                        )
-                        break
-                    doc = fixed
-                    scenes_payload = _dump_scenes(doc, figure_map)
-                    yield _event(
-                        PipelineEventType.LOG,
-                        f"[{label}] designer adjusted → {len(doc.scenes)} scenes, "
-                        f"{sum(s.duration_ms for s in doc.scenes) / 1000:.0f}s",
-                        agent_id,
-                    )
+                # Length was fitted at the designer stage (so added scenes went
+                # through verification); here we just report the final cut.
+                total_ms = sum(s.duration_ms for s in doc.scenes)
+                yield _event(
+                    PipelineEventType.LOG,
+                    f"[{label}] final cut: {len(doc.scenes)} scenes, "
+                    f"{total_ms / 1000:.0f}s (target {target_min} min)",
+                    agent_id,
+                )
 
                 # Narration audio (TTS) — synthesized against the FINAL cut so
                 # revisions can't orphan clips. Scene durations stretch to fit
@@ -1006,22 +1065,37 @@ class AgnoPipelineExecutor:
                             )
                         else:
                             tconn, tkey = tts
+                            todo = [
+                                (i, s, (s.narration or "").strip())
+                                for i, s in enumerate(doc.scenes)
+                                if (s.narration or "").strip()
+                            ]
                             yield _event(
                                 PipelineEventType.LOG,
-                                f"[{label}] synthesizing narration via {tconn.provider} "
-                                f"({tconn.model})…",
+                                f"[{label}] synthesizing narration for {len(todo)} "
+                                f"scene(s) via {tconn.provider} ({tconn.model})…",
                                 agent_id,
                             )
+                            import asyncio as _asyncio
+
+                            sem = _asyncio.Semaphore(4)
+
+                            async def _voice(  # noqa: ANN202
+                                i: int, text: str, _sem=sem, _c=tconn, _k=tkey
+                            ):
+                                async with _sem:
+                                    return await narrate_scene(project_id, i, text, _c, _k)
+
+                            results = await _asyncio.gather(
+                                *(_voice(i, text) for i, _, text in todo),
+                                return_exceptions=True,
+                            )
                             voiced = 0
-                            for i, s in enumerate(doc.scenes):
-                                text = (s.narration or "").strip()
-                                if not text:
+                            for (i, s, _), res in zip(todo, results, strict=True):
+                                if isinstance(res, BaseException):
+                                    log.warning("TTS failed for scene %d: %s", i, res)
                                     continue
-                                try:
-                                    url, ms = await narrate_scene(project_id, i, text, tconn, tkey)
-                                except Exception as exc:  # noqa: BLE001 - per-scene
-                                    log.warning("TTS failed for scene %d: %s", i, exc)
-                                    continue
+                                url, ms = res
                                 s.params.audio_url = url
                                 s.params.audio_duration_ms = ms
                                 if ms and s.duration_ms < ms + 300:
@@ -1030,7 +1104,8 @@ class AgnoPipelineExecutor:
                             scenes_payload = _dump_scenes(doc, figure_map)
                             yield _event(
                                 PipelineEventType.LOG,
-                                f"[{label}] narration audio attached to {voiced} scene(s)",
+                                f"[{label}] narration audio attached to {voiced}/"
+                                f"{len(todo)} scene(s)",
                                 agent_id,
                             )
                     except Exception as exc:  # noqa: BLE001 - audio is an enhancement

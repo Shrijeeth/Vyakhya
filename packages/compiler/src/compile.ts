@@ -147,9 +147,13 @@ function themeCss(width: number, height: number): string {
 function previewRuntime(): string {
   return `<style>*{animation-play-state:paused !important}</style>
 <script>(function(){var scenes=[].slice.call(document.querySelectorAll('.hf-scene'));
-var audios=[].slice.call(document.querySelectorAll('audio.clip'));var playing=false;
-function syncAudio(t){for(var i=0;i<audios.length;i++){var a=audios[i],s=1000*(parseFloat(a.getAttribute('data-start'))||0),d=1000*(parseFloat(a.getAttribute('data-duration'))||0),act=playing&&t>=s&&t<s+d;
-if(act){var off=(t-s)/1000;if(Math.abs(a.currentTime-off)>0.3){try{a.currentTime=off;}catch(_){}}
+var audios=[].slice.call(document.querySelectorAll('audio.clip'));var playing=false;var prevT=-1e9;
+function syncAudio(t){var jump=Math.abs(t-prevT)>400;prevT=t;
+for(var i=0;i<audios.length;i++){var a=audios[i],s=1000*(parseFloat(a.getAttribute('data-start'))||0),d=1000*(parseFloat(a.getAttribute('data-duration'))||0),act=playing&&t>=s&&t<s+d;
+if(act){var off=(t-s)/1000;
+// Hard-seek only on real scrubs or large drift, and never while the element is
+// mid-seek — resetting currentTime every tick replays fragments (stutter).
+if(!a.seeking&&(jump||a.paused||Math.abs(a.currentTime-off)>1.2)){try{a.currentTime=off;}catch(_){}}
 if(a.paused){var p=a.play();if(p&&p.catch)p.catch(function(){});}}else if(!a.paused){a.pause();}}}
 function seek(t){var shown=false;for(var i=0;i<scenes.length;i++){var sc=scenes[i],s=1000*(parseFloat(sc.getAttribute('data-start'))||0),d=1000*(parseFloat(sc.getAttribute('data-duration'))||0),a=(t>=s&&t<s+d);sc.style.display=a?'flex':'none';if(a){shown=true;sc.style.setProperty('--t0',(s-t)+'ms');}}
 if(!shown&&scenes.length){scenes[scenes.length-1].style.display='flex';}syncAudio(t);}
