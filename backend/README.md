@@ -13,11 +13,10 @@ Responsibilities:
 ## Dev
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -e .
-uvicorn vyakhya.main:app --reload
+uv sync                                    # create .venv + install from uv.lock
+uv run uvicorn vyakhya.main:app --reload   # API on http://localhost:8000
 # worker:
-procrastinate worker
+uv run procrastinate worker
 ```
 
 > Scaffold placeholder — module layout, pyproject, and the Scene-JSON Pydantic models land here next.

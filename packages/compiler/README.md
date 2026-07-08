@@ -3,8 +3,8 @@
 Shared **TypeScript** package: **Scene-JSON → HyperFrames HTML**.
 
 Imported by **both**:
-- the **browser editor** (`apps/web`) — client-side compile for instant live preview
-- the **render service** (`services/render`) — same compile before headless render
+- the **browser editor** (`frontend/`) — client-side compile for instant live preview
+- the **render service** (`render/`) — same compile before headless render
 
 → guarantees **preview == final**. Deterministic (no randomness), seek-safe.
 

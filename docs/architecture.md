@@ -3,8 +3,8 @@
 ## 1. High-level shape
 ```
 ┌─────────────────────────────────────────────┐
-│  Frontend (React + Vite, built via Lovable)  │
-│  → Tailwind + shadcn/ui + Radix               │
+│  Frontend (React · TanStack Start)            │
+│  → Tailwind v4 + shadcn/ui + Radix            │
 │  • API-key & provider settings                │
 │  • Agent prompt editor                        │
 │  • Pipeline (agent DAG) view                  │
@@ -22,6 +22,8 @@
 │  • Encrypted key vault, proxy to LLM/TTS APIs  │
 └──────────────────────────────────────────────┘
 ```
+
+> The concrete REST + WebSocket/SSE wire contract between frontend and backend — endpoints, schemas, streaming event shapes — is specified in [`api.md`](api.md), derived from the frontend service layer.
 
 ## 2. The key design decision: **Scene-JSON is the source of truth, not HTML**
 Users must edit **scenes and text in an editor**, never raw HTML. So the pipeline must NOT treat HTML as the editable artifact:
@@ -54,7 +56,7 @@ The Scene-JSON → HyperFrames HTML compiler runs **in the browser** for instant
 - Scene-JSON is the single contract crossing all three (Python ⇄ browser ⇄ render worker) — design its schema first.
 
 ## 3. Frontend feature → OSS component map
-All MIT/permissive unless noted; all compatible with the Lovable (React + Vite + Tailwind + shadcn/ui) output.
+All MIT/permissive unless noted; all compatible with the frontend stack (React · TanStack Start · Tailwind v4 · shadcn/ui).
 
 | FE surface | Recommended OSS | License | Notes |
 |-----------|-----------------|---------|-------|
@@ -135,13 +137,13 @@ Self-host install is a **scripted terminal experience** (installer/first-run wiz
 - Idempotent + re-runnable (upgrade path); a `--headless`/flags mode for CI/servers.
 - Ships with the compose file so `git clone → ./setup.sh → open browser` is the whole install.
 
-## 5. Lovable-specific notes
-- Lovable emits React + Vite + Tailwind + shadcn/ui (+ Supabase). All components above drop in cleanly.
-- Lovable is great for the **shell** (settings, auth, layout, forms, pipeline view). Hand-integrate the heavier pieces (Monaco, BlockNote/Tiptap, timeline, Vidstack) — Lovable can scaffold the mounts, you wire the logic.
-- Keep the **Python agent backend separate** (FastAPI). Lovable/Supabase handles auth + metadata + storage; Python owns orchestration, compilation, and rendering. Define a clean REST/WS contract between them early.
+## 5. Frontend origin & integration notes
+- The Studio UI was designed in **Lovable** and has since been **migrated into `frontend/` as a standalone TanStack Start app** (React · Router · Query · Tailwind v4 · shadcn/ui) — no Lovable/Supabase runtime dependency. All components above drop in cleanly.
+- Lovable produced the **shell** (settings, layout, forms, pipeline view). The heavier pieces (Monaco, timeline, preview) are hand-wired in `frontend/src/components/`.
+- Keep the **Python agent backend separate** (FastAPI). Python owns orchestration, compilation, and rendering; the frontend is a pure client over a REST/WS contract — see [`api.md`](api.md).
 
 ## 6. Recommended default stack (copy-paste decision)
-- **FE:** React + Vite + Tailwind + shadcn/ui · React Flow · Monaco · BlockNote · react-timeline-editor · Vidstack · TanStack Query · Zustand · react-hook-form + zod
+- **FE:** React · **TanStack Start** (Router + Query) · Tailwind v4 + shadcn/ui · React Flow · Monaco · Zustand · react-hook-form + zod · **bun**
 - **BE (brains):** Python + FastAPI · agent orchestration via **Agno** (Teams + Workflows) · emits **Scene-JSON** · Procrastinate (Postgres-backed async task queue) for jobs · Postgres (or Supabase). *Never touches HTML.*
 - **Compiler:** `@vyakhya/compiler` — shared **TypeScript** package (Scene-JSON → HyperFrames HTML), imported by both the browser editor and the render worker.
 - **Render worker:** **Node** + HyperFrames (`@hyperframes/producer`) — compiles Scene-JSON→HTML then headless-renders → MP4. Separate from Python (see §8).

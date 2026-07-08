@@ -42,12 +42,12 @@ PDF ─▶ Studio backend (Python · FastAPI · Agno agents) ─▶ Scene-JSON �
 
 | Path | What |
 |------|------|
-| [`frontend/`](frontend/) | React + Vite Studio UI (dashboard, agent pipeline view, scene editor, model config, render settings) |
+| [`frontend/`](frontend/) | **TanStack Start** (React) Studio UI (dashboard, agent pipeline view, scene editor, model config, render settings) |
 | [`backend/`](backend/) | Python · FastAPI · **Agno** orchestration · **Procrastinate** jobs · emits Scene-JSON · serves the frontend |
 | [`render/`](render/) | Node · **@hyperframes/producer** · compile → lint → render → MP4 |
 | [`packages/compiler/`](packages/compiler/) | **@vyakhya/compiler** — Scene-JSON → HyperFrames HTML (shared: browser + render) |
 | [`skills/hyperframes/`](skills/hyperframes/) | HyperFrames Agno `LocalSkills` dir (design-time block authoring) |
-| [`docs/`](docs/) | Architecture, Scene-JSON schema, decisions |
+| [`docs/`](docs/) | [Architecture](docs/architecture.md), [**API contract**](docs/api.md) (REST + WS/SSE), [**DB schema**](docs/db-schema.md), Scene-JSON schema, decisions |
 | [`docker-compose.yml`](docker-compose.yml) | `studio + worker + render + postgres + minio` |
 | [`setup.sh`](setup.sh) | Scripted install: generate key, write `.env`, migrate, `docker compose up` |
 
@@ -62,9 +62,21 @@ cd Vyakhya
 
 Requires Docker. The setup script provisions `VYAKHYA_ENCRYPTION_KEY` (used to encrypt your provider keys at rest) into `.env` — keep that file private and backed up.
 
+## Local development (frontend)
+
+The JS side is a single **bun** workspace (root [`package.json`](package.json)). Backend is Python (`uv`).
+
+```bash
+bun install                 # installs the workspace from repo root
+bun --cwd frontend dev      # Studio UI on http://localhost:5173
+bun --cwd frontend build    # client + SSR production build
+```
+
+Frontend talks to the backend over the typed service layer in `frontend/src/services/` — the wire contract it expects is in [`docs/api.md`](docs/api.md).
+
 ## Tech stack
 
-**Frontend:** React · Vite · TypeScript · Tailwind · shadcn/ui · React Flow · Monaco · BlockNote · Vidstack
+**Frontend:** React · **TanStack Start** (Router + Query) · TypeScript · Tailwind v4 · shadcn/ui · React Flow · Monaco · zustand — **bun** workspace
 
 **Backend:** Python · FastAPI · Agno · Procrastinate · Postgres
 

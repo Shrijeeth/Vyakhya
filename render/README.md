@@ -1,4 +1,4 @@
-# services/render — Vyakhya render service
+# render — Vyakhya render service
 
 Node · TypeScript · **@hyperframes/producer**.
 
@@ -13,8 +13,8 @@ HTTP API: `POST /render`, `POST /lint`, `GET /health`. Scales via replicas (Patt
 ## Dev
 
 ```bash
-pnpm install
-pnpm --filter @vyakhya/render dev
+bun install                 # from repo root (single bun workspace)
+bun --cwd render dev
 ```
 
 > Scaffold placeholder — Fastify app + producer wiring land here next.
