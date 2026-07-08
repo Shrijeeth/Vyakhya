@@ -61,7 +61,7 @@ export function SceneList() {
         </Button>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <ol className="space-y-1.5 p-2">
           {scenes.map((s, idx) => {
             const Icon = VISUAL_ICON[s.visualType];

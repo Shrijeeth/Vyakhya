@@ -29,9 +29,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const stage = projectMatch?.[2];
   const projectName = projectId ? `Project ${projectId} · ${stage}` : undefined;
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="grid min-h-screen grid-cols-[240px_1fr]">
-        <aside className="flex flex-col border-r border-border bg-sidebar text-sidebar-foreground">
+    // h-screen (not min-h-screen): full-height pages like the editor need a
+    // bounded height chain — with min-h the columns grow with content and
+    // internal panes (scene list, preview) can never scroll. `main` scrolls.
+    <div className="h-screen overflow-hidden bg-background text-foreground">
+      <div className="grid h-screen grid-cols-[240px_1fr] grid-rows-[minmax(0,1fr)]">
+        <aside className="flex min-h-0 flex-col overflow-y-auto border-r border-border bg-sidebar text-sidebar-foreground">
           <div className="flex h-14 items-center border-b border-sidebar-border px-4">
             <Wordmark />
           </div>
@@ -69,7 +72,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </aside>
 
-        <div className="flex min-h-screen flex-col">
+        <div className="flex min-h-0 flex-col">
           <header className="flex h-14 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur">
             <div className="flex items-center gap-3">
               {projectName ? (
@@ -94,7 +97,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <ThemeToggle />
             </div>
           </header>
-          <main className="flex-1 overflow-auto">{children}</main>
+          <main className="min-h-0 flex-1 overflow-auto">{children}</main>
         </div>
       </div>
       <Toaster position="top-right" richColors closeButton />

@@ -99,11 +99,14 @@ function EditorPage() {
           <RenderDialog projectId={projectId} />
         </div>
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-[300px_1fr_360px]">
-        <div className="min-h-0 border-r border-border bg-card/30">
+      {/* grid-rows-[minmax(0,1fr)] caps the row at the available height — an
+          implicit `auto` row grows to the tallest column (45 scene cards),
+          pushing the preview thousands of px below the viewport. */}
+      <div className="grid min-h-0 flex-1 grid-cols-[300px_1fr_360px] grid-rows-[minmax(0,1fr)]">
+        <div className="min-h-0 overflow-hidden border-r border-border bg-card/30">
           <SceneList />
         </div>
-        <div className="min-h-0 border-r border-border">
+        <div className="min-h-0 overflow-hidden border-r border-border">
           <PreviewPlayer
             html={previewHtml}
             seekMs={currentTime}
@@ -117,7 +120,7 @@ function EditorPage() {
             aspectRatio={project.aspectRatio}
           />
         </div>
-        <div className="min-h-0 bg-card/20">
+        <div className="min-h-0 overflow-hidden bg-card/20">
           <Inspector />
         </div>
       </div>
