@@ -138,6 +138,9 @@ function orbit3d(p: Record<string, unknown>): string {
 
 // Agent-authored scene. Sanitized: scripts, event handlers, and external
 // iframes are stripped — motion must be CSS (finite, offset by var(--t0)).
+// Viewport units are rewritten to container-query units: the model writes
+// `100vh` meaning "the frame", but vh is the browser viewport (tiny in the
+// scaled preview) — `.hf-custom` is a size container, so cqh/cqw ARE the frame.
 function customHtml(p: Record<string, unknown>): string {
   const { html, css } = p as CustomHtmlParams;
   const clean = (s: string) =>
@@ -145,7 +148,8 @@ function customHtml(p: Record<string, unknown>): string {
       .replace(/<script\b[\s\S]*?(<\/script>|$)/gi, "")
       .replace(/<iframe\b[\s\S]*?(<\/iframe>|$)/gi, "")
       .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-      .replace(/javascript:/gi, "");
+      .replace(/javascript:/gi, "")
+      .replace(/(\d*\.?\d+)v(h|w|min|max)\b/gi, "$1cq$2");
   const style = css ? `<style>${clean(css)}</style>` : "";
   return `<div class="hf-custom">${style}${clean(html ?? "")}</div>`;
 }

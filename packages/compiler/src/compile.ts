@@ -108,11 +108,15 @@ function themeCss(width: number, height: number): string {
     margin-top:-${Math.round(width / 36)}px;padding:.5em .8em;border-radius:12px;background:#fff;
     box-shadow:0 10px 30px -12px rgba(28,30,46,.3);text-align:center;
     font-size:${Math.round(width / 60)}px;font-weight:600;color:var(--hf-fg);backface-visibility:hidden}
-  .hf-custom{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  .hf-custom{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+    container-type:size}
+  .hf-custom>:not(style){flex:1 1 100%;width:100%;height:100%;min-height:100%}
   .hf-stage-full{position:absolute;inset:0;max-width:none;width:100%;height:100%;text-align:initial}
-  .hf-caption{position:absolute;left:0;right:0;bottom:6%;text-align:center;font-size:${Math.round(width / 56)}px;padding:0 8%}
-  .hf-caption-minimal{color:var(--hf-fg)}
-  .hf-caption-bold{color:#fff;font-weight:700;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+  .hf-caption{position:absolute;left:50%;bottom:4%;transform:translateX(-50%);max-width:84%;
+    text-align:center;font-size:${Math.round(width / 56)}px;padding:.4em 1em;border-radius:12px;
+    background:rgba(8,10,18,.55);color:#fff;backdrop-filter:blur(6px)}
+  .hf-caption-minimal{font-weight:400}
+  .hf-caption-bold{font-weight:700;text-shadow:0 2px 12px rgba(0,0,0,.6)}
   .hf-unknown{color:#b00}
   /* Entrance animations, offset to each clip's start (--t0) with per-element
      stagger (--i). Finite + property-allowlisted → seekable and render-safe. */

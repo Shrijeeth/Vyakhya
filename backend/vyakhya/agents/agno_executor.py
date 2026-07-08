@@ -192,7 +192,10 @@ _DESIGNER_INSTRUCTIONS = [
     "figure URLs; fully self-styled (every class defined in css or inline, "
     "slug-prefixed per scene); all animations finite with fill-mode both; "
     "every animation-delay written as calc(var(--t0, 0s) + <offset>) so the "
-    "scene is seekable; root element fills the frame.",
+    "scene is seekable; root element fills the frame (width/height 100%). "
+    "Size with % — vh/vw refer to the browser viewport, not the frame. Empty "
+    "decorative divs collapse to zero: give every shape explicit width AND "
+    "height.",
     "Motion: smooth long-tail eases (ease-out / cubic-bezier(.22,1,.36,1)); "
     "never bounce/elastic. Reveal elements sequentially across the scene's "
     "duration — don't front-load, don't exit mid-scene, no infinite loops or "
@@ -805,7 +808,7 @@ class AgnoPipelineExecutor:
                 # scene and a vision reviewer judges the actual frames —
                 # overlapping/clipped/empty/incomplete scenes go back to the
                 # designer with concrete CSS fixes.
-                for vround in range(1, 3):
+                for vround in range(1, 4):
                     scenes_payload = _dump_scenes(doc, figure_map)
                     try:
                         images = await _review_images(
