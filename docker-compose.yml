@@ -36,6 +36,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Install the Agno agent runtime into the image when enabled in .env.
+        INSTALL_AGENTS: ${INSTALL_AGENTS:-0}
     env_file: .env
     environment:
       # Allow the browser origin of the web service through CORS.
@@ -66,7 +69,11 @@ services:
 
   # Same image as studio, run as a Procrastinate worker (runs the Agno pipeline).
   worker:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        INSTALL_AGENTS: ${INSTALL_AGENTS:-0}
     command: ["procrastinate", "worker"]
     env_file: .env
     depends_on:
