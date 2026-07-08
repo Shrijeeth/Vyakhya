@@ -56,10 +56,12 @@ async def prepare_run(project_id: str) -> str:
         run = await create_run(session, project_id)
         run_id = run.id
         await session.commit()
+    log.info("pipeline run prepared run=%s project=%s", run_id, project_id)
     return run_id
 
 
 def launch_run(run_id: str, project_id: str) -> None:
+    log.info("pipeline run launched run=%s project=%s", run_id, project_id)
     asyncio.create_task(_execute(run_id, project_id))
 
 
@@ -83,6 +85,7 @@ async def _execute(run_id: str, project_id: str) -> None:
             if project is not None:
                 project.status = ProjectStatus.READY
             await session.commit()
+        log.info("pipeline run done run=%s project=%s", run_id, project_id)
     except Exception:  # noqa: BLE001 - surface failures as an error status
         log.exception("pipeline run %s failed", run_id)
         async with sm() as session:

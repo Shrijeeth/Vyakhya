@@ -49,6 +49,13 @@ async def save_render_settings(session: AsyncSession, payload: RenderSettingsIO)
     row.audio_narration_db = payload.audio_narration_db
     row.audio_music_db = payload.audio_music_db
     await session.flush()
+    log.info(
+        "render settings saved fps=%s %sx%s codec=%s",
+        row.fps,
+        row.width,
+        row.height,
+        row.codec.value,
+    )
     return row
 
 
@@ -77,10 +84,12 @@ async def prepare_render(project_id: str, settings: RenderSettingsIO) -> str:
         session.add(job)
         await session.commit()
         job_id = job.id
+    log.info("render job prepared job=%s project=%s", job_id, project_id)
     return job_id
 
 
 def launch_render(job_id: str) -> None:
+    log.info("render job launched job=%s", job_id)
     asyncio.create_task(_execute_render(job_id))
 
 

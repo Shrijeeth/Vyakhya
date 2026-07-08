@@ -18,9 +18,15 @@ import {
   listConnections,
   removeConnection,
   testConnection,
+  testConnectionDraft,
   updateAssignment,
 } from "@/services/api";
-import type { ProviderConnection, ProviderId, ProviderKind } from "@/services/types";
+import type {
+  ConnectionTestResult,
+  ProviderConnection,
+  ProviderId,
+  ProviderKind,
+} from "@/services/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -166,6 +172,7 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
   const [model, setModel] = useState(LLM_PROVIDERS[0].models[0]);
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
+  const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
   const qc = useQueryClient();
   const mutation = useMutation({
     mutationFn: () =>
@@ -179,6 +186,15 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
       qc.invalidateQueries({ queryKey: ["connections"] });
       toast.success("Connection added");
       onDone();
+    },
+  });
+  const testMutation = useMutation({
+    mutationFn: () =>
+      testConnectionDraft({ provider, model, apiKey, baseUrl: baseUrl || undefined }),
+    onSuccess: (r) => {
+      setTestResult(r);
+      if (r.success) toast.success(`Connection OK (${r.latencyMs}ms)`);
+      else toast.error(r.error ?? "Connection failed");
     },
   });
   const providerMeta = PROVIDERS.find((p) => p.id === provider);
@@ -267,9 +283,37 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
           </div>
         )}
       </div>
+      {testResult && (
+        <div
+          className={
+            "mt-3 flex items-center gap-2 rounded-md border px-3 py-2 text-xs " +
+            (testResult.success
+              ? "border-[color:var(--success)]/40 text-[color:var(--success)]"
+              : "border-destructive/40 text-destructive")
+          }
+        >
+          {testResult.success ? (
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+          ) : (
+            <XCircle className="h-3.5 w-3.5 shrink-0" />
+          )}
+          <span className="break-all">
+            {testResult.success
+              ? `Connected in ${testResult.latencyMs}ms${testResult.detail ? ` · ${testResult.detail}` : ""}`
+              : (testResult.error ?? "Connection failed")}
+          </span>
+        </div>
+      )}
       <div className="mt-3 flex justify-end gap-2">
         <Button variant="ghost" onClick={onDone}>
           Cancel
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => testMutation.mutate()}
+          disabled={testMutation.isPending}
+        >
+          {testMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Test"}
         </Button>
         <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
           Add
@@ -293,9 +337,10 @@ function ModelConfigPage() {
 
   const testMut = useMutation({
     mutationFn: (id: string) => testConnection(id),
-    onSuccess: () => {
+    onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ["connections"] });
-      toast.success("Connection ok");
+      if (r.success) toast.success(`Connection OK (${r.latencyMs}ms)`);
+      else toast.error(r.error ?? "Connection failed");
     },
   });
   const removeMut = useMutation({

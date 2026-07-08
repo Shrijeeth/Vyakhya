@@ -7,6 +7,7 @@ import type {
   AgentId,
   AgentModelAssignment,
   AgentPrompt,
+  ConnectionTestResult,
   EditorProject,
   PipelineEvent,
   Project,
@@ -197,8 +198,16 @@ export function removeConnection(id: string): Promise<void> {
   return http<void>(`/connections/${id}`, { method: "DELETE" });
 }
 
-export function testConnection(id: string): Promise<ProviderConnection> {
-  return http<ProviderConnection>(`/connections/${id}/test`, { method: "POST" });
+export function testConnection(id: string): Promise<ConnectionTestResult> {
+  return http<ConnectionTestResult>(`/connections/${id}/test`, { method: "POST" });
+}
+
+// Probe an unsaved connection straight from the add-connection form.
+export function testConnectionDraft(c: ConnectionInput): Promise<ConnectionTestResult> {
+  return http<ConnectionTestResult>("/connections/test", {
+    method: "POST",
+    body: JSON.stringify(c),
+  });
 }
 
 export function listAssignments(): Promise<AgentModelAssignment[]> {

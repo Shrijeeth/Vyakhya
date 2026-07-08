@@ -7,9 +7,12 @@ import re
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from vyakhya.core.logging import get_logger
 from vyakhya.db.models.project import Project
 from vyakhya.enums import AspectRatio, AudienceLevel, ProjectStatus
 from vyakhya.utils import new_id
+
+log = get_logger(__name__)
 
 
 async def list_projects(session: AsyncSession) -> list[Project]:
@@ -46,4 +49,12 @@ async def create_project(
     )
     session.add(project)
     await session.flush()
+    log.info(
+        "project created id=%s title=%r audience=%s aspect=%s lang=%s",
+        project.id,
+        title,
+        audience.value,
+        aspect_ratio.value,
+        language,
+    )
     return project

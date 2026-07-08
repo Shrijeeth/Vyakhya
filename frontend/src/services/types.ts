@@ -107,6 +107,13 @@ export interface ProviderConnection {
   lastTestedAt?: string;
 }
 
+export interface ConnectionTestResult {
+  success: boolean;
+  latencyMs: number;
+  detail?: string;
+  error?: string;
+}
+
 export type AgentRole =
   "comprehension" | "planner" | "scriptwriter" | "visual_designer" | "narrator" | "verifier";
 

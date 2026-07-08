@@ -10,11 +10,23 @@ from vyakhya.schemas.config import (
     AgentModelAssignmentOut,
     AssignmentUpdate,
     ConnectionCreate,
+    ConnectionTest,
+    ConnectionTestResult,
     ProviderConnectionOut,
 )
 from vyakhya.services import connections as svc
+from vyakhya.services.probe import ProbeResult
 
 router = APIRouter(tags=["model-config"])
+
+
+def _result(probe: ProbeResult) -> ConnectionTestResult:
+    return ConnectionTestResult(
+        success=probe.success,
+        latency_ms=probe.latency_ms,
+        detail=probe.detail,
+        error=probe.error,
+    )
 
 
 @router.get("/connections", response_model=list[ProviderConnectionOut])
@@ -37,12 +49,22 @@ async def delete_connection(connection_id: str, session: SessionDep) -> Response
     return Response(status_code=204)
 
 
-@router.post("/connections/{connection_id}/test", response_model=ProviderConnectionOut)
-async def test_connection(connection_id: str, session: SessionDep) -> ProviderConnectionOut:
-    conn = await svc.test_connection(session, connection_id)
-    if conn is None:
+@router.post("/connections/test", response_model=ConnectionTestResult)
+async def test_connection_draft(
+    payload: ConnectionTest, session: SessionDep
+) -> ConnectionTestResult:
+    """Probe an unsaved connection (add-connection form)."""
+    return _result(await svc.probe_draft(session, payload))
+
+
+@router.post("/connections/{connection_id}/test", response_model=ConnectionTestResult)
+async def test_connection(connection_id: str, session: SessionDep) -> ConnectionTestResult:
+    """Probe a saved connection and persist its status."""
+    res = await svc.test_connection(session, connection_id)
+    if res is None:
         raise HTTPException(status_code=404, detail="Connection not found")
-    return ProviderConnectionOut.model_validate(conn)
+    _conn, probe = res
+    return _result(probe)
 
 
 @router.get("/assignments", response_model=list[AgentModelAssignmentOut])

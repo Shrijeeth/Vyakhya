@@ -8,9 +8,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from vyakhya.core.logging import get_logger
 from vyakhya.db.models.project import Project, Scene, SceneCitation
 from vyakhya.schemas.project import SceneIn
 from vyakhya.utils import new_id
+
+log = get_logger(__name__)
 
 
 async def get_editor_project(session: AsyncSession, project_id: str) -> Project | None:
@@ -30,6 +33,7 @@ async def save_scene(session: AsyncSession, project_id: str, scene_in: SceneIn) 
     )
     scene = result.scalar_one_or_none()
     if scene is None:
+        log.warning("save_scene: not found project=%s scene=%s", project_id, scene_in.id)
         return None
 
     scene.position = scene_in.index
@@ -52,6 +56,13 @@ async def save_scene(session: AsyncSession, project_id: str, scene_in: SceneIn) 
             )
         )
     await session.flush()
+    log.info(
+        "scene saved project=%s scene=%s pos=%s citations=%d",
+        project_id,
+        scene.id,
+        scene.position,
+        len(scene.citations),
+    )
     return scene
 
 

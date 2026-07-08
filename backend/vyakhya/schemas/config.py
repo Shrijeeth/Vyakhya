@@ -32,6 +32,22 @@ class ConnectionCreate(CamelModel):
     settings: dict = Field(default_factory=dict)
 
 
+class ConnectionTest(CamelModel):
+    """Probe an unsaved (draft) connection from the add-connection form."""
+
+    provider: ProviderId
+    model: str
+    api_key: str = ""
+    base_url: str | None = None
+
+
+class ConnectionTestResult(CamelModel):
+    success: bool
+    latency_ms: int
+    detail: str | None = None
+    error: str | None = None
+
+
 class AgentModelAssignmentOut(CamelModel):
     role: AgentRole
     connection_id: str | None = None

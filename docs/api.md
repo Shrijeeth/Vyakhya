@@ -209,16 +209,30 @@ the `model` field carries the voice/model id (e.g. `eleven_v3`, `aura-2-thalia-e
 ```
 
 ### `POST /api/connections`
-Body: `{ provider, model, apiKey, baseUrl? }` (raw `apiKey` in, store securely).
-→ `ProviderConnection` with `status: "unknown"` and masked key.
+Body: `{ provider, model, apiKey, baseUrl?, settings? }` (raw `apiKey` in, store
+securely). → `ProviderConnection` with `status: "unknown"` and masked key.
 
 ### `DELETE /api/connections/:id`
 Remove a connection. Any `AgentModelAssignment` pointing at it must be nulled.
 → `204`.
 
+### `POST /api/connections/test`
+Probe an **unsaved** connection straight from the add-connection form — nothing
+is persisted. Body: `{ provider, model, apiKey?, baseUrl? }`. → `ConnectionTestResult`:
+
+```jsonc
+{ "success": true, "latencyMs": 214, "detail": "HTTP 200", "error": null }
+```
+
+The probe hits the provider's cheapest authenticated endpoint (its model/voice
+list) — a 2xx means the key is valid and reachable; it spends no completion/TTS
+credits. Keyless providers (`ollama`, `hyperframes`) skip the key. Never 500s —
+failures come back as `success: false` with an `error` string.
+
 ### `POST /api/connections/:id/test`
-Validate credentials against the provider. → updated `ProviderConnection`
-(`status: "ok" | "error"`, `lastTestedAt` set).
+Same probe for a **saved** connection (decrypts the stored key), and persists the
+outcome onto the row (`status: "ok" | "error"`, `lastTestedAt` set).
+→ `ConnectionTestResult`.
 
 ### `GET /api/assignments` → `AgentModelAssignment[]`
 
