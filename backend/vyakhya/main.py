@@ -5,13 +5,11 @@ Run: uvicorn vyakhya.main:app --reload
 
 from __future__ import annotations
 
-import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from vyakhya import __version__
 from vyakhya.api.router import api_router
@@ -71,16 +69,11 @@ def create_app() -> FastAPI:
 
     app.include_router(api_router)
 
-    # In production the built frontend is served from the same container.
-    dist = settings.frontend_dist
-    if dist and os.path.isdir(dist):
-        app.mount("/", StaticFiles(directory=dist, html=True), name="frontend")
-        log.info("serving frontend from %s", dist)
-    else:
-
-        @app.get("/", tags=["health"])
-        async def root() -> dict[str, str]:
-            return {"name": settings.app_name, "docs": "/docs"}
+    # The frontend is served by the separate `web` (SSR) service; this is an
+    # API-only app.
+    @app.get("/", tags=["health"])
+    async def root() -> dict[str, str]:
+        return {"name": settings.app_name, "docs": "/docs"}
 
     return app
 

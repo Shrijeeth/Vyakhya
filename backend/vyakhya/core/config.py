@@ -19,10 +19,14 @@ class Settings(BaseSettings):
     # ── App ────────────────────────────────────────────────────────────────
     app_name: str = "Vyakhya Studio API"
     log_level: str = Field(default="info", alias="LOG_LEVEL")
-    # Origins allowed by CORS (the Vite/TanStack dev server during development).
-    cors_origins: list[str] = Field(default=["http://localhost:5173", "http://localhost:3000"])
-    # Directory of the built frontend to serve in production (optional).
-    frontend_dist: str | None = Field(default=None, alias="FRONTEND_DIST")
+    # Comma-separated origins allowed by CORS (the web service / dev server).
+    cors_origins_raw: str = Field(
+        default="http://localhost:5173,http://localhost:3000", alias="CORS_ORIGINS"
+    )
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins_raw.split(",") if o.strip()]
 
     # ── Security ───────────────────────────────────────────────────────────
     # Master key used to derive the symmetric key that encrypts provider API

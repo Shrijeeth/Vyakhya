@@ -27,7 +27,7 @@
 
 ## The app: Vyakhya Studio
 
-Vyakhya is **one app — Studio** — a FastAPI backend (Agno agents) that serves the React frontend, backed by a Postgres job queue and a Node render service. (The marketing landing site is separate and hosted on Lovable — not in this repo.)
+Vyakhya is **one app — Studio** — a FastAPI backend (Agno agents) plus a TanStack Start SSR web UI, backed by a Postgres job queue and a Node render service. The browser talks to the API cross-origin, gated by a shared API key. (The marketing landing site is separate and hosted on Lovable — not in this repo.)
 
 ```
 PDF ─▶ Studio backend (Python · FastAPI · Agno agents) ─▶ Scene-JSON ─┬─▶ Studio frontend: live HTML preview
@@ -48,7 +48,7 @@ PDF ─▶ Studio backend (Python · FastAPI · Agno agents) ─▶ Scene-JSON �
 | [`packages/compiler/`](packages/compiler/) | **@vyakhya/compiler** — Scene-JSON → HyperFrames HTML (shared: browser + render) |
 | [`skills/hyperframes/`](skills/hyperframes/) | HyperFrames Agno `LocalSkills` dir (design-time block authoring) |
 | [`docs/`](docs/) | [Architecture](docs/architecture.md), [**API contract**](docs/api.md) (REST + WS/SSE), [**DB schema**](docs/db-schema.md), Scene-JSON schema, decisions |
-| [`docker-compose.yml`](docker-compose.yml) | `studio + worker + render + postgres + minio` |
+| [`docker-compose.yml`](docker-compose.yml) | `studio (API) + web (SSR UI) + worker + render + postgres + minio` |
 | [`setup.sh`](setup.sh) | Interactive install wizard: prereq checks, guided config, generate key, write `.env`, `docker compose up` + health check |
 
 ## Quick start (self-host)

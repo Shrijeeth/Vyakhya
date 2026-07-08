@@ -33,7 +33,13 @@ function authHeaders(base: Record<string, string> = {}): Record<string, string> 
   return API_KEY ? { ...base, "X-API-Key": API_KEY } : base;
 }
 
+// True only in the browser. During SSR/SPA-shell prerender there is no backend,
+// so network calls are skipped (queries stay pending → the static shell renders
+// its loading state; the client fetches for real after hydration).
+const IS_BROWSER = typeof window !== "undefined";
+
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
+  if (!IS_BROWSER) return new Promise<T>(() => {}); // never resolves during prerender
   const isJson = init?.body && !(init.body instanceof FormData);
   const res = await fetch(apiUrl(path), {
     ...init,
@@ -49,6 +55,7 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
 // Shared fetch-based SSE reader (works for GET and POST, and carries the auth
 // header — which EventSource cannot). Returns an unsubscribe function.
 function streamSSE(path: string, init: RequestInit, onEvent: (event: unknown) => void): () => void {
+  if (!IS_BROWSER) return () => {};
   const ctrl = new AbortController();
   (async () => {
     const res = await fetch(apiUrl(path), {

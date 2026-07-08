@@ -1,0 +1,15 @@
+**/node_modules
+**/dist
+**/.output
+**/.tanstack
+**/.nitro
+backend/.venv
+**/__pycache__
+**/*.pyc
+.git
+.github
+*.log
+.env
+.env.*
+!.env.example
+scratchpad

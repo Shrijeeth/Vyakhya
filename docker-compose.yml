@@ -31,15 +31,15 @@ services:
       - "9000:9000"
       - "9001:9001"
 
-  # The single app: FastAPI backend (Agno agents, Scene-JSON) serving the built React Studio frontend.
+  # Backend API: FastAPI (Agno agents, Scene-JSON). The UI is the `web` service.
   studio:
     build:
-      context: .                     # backend + built frontend in one image
-      args:
-        # Baked into the frontend build so the UI sends the API key.
-        VITE_API_KEY: ${VITE_API_KEY:-}
-        VITE_API_URL: ""             # same-origin (studio serves the FE)
+      context: .
+      dockerfile: Dockerfile
     env_file: .env
+    environment:
+      # Allow the browser origin of the web service through CORS.
+      CORS_ORIGINS: "http://localhost:${WEB_PORT:-5173}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,6 +47,22 @@ services:
         condition: service_started
     ports:
       - "${API_PORT:-8000}:8000"
+
+  # Frontend: TanStack Start SSR, served by Bun. The browser talks to the API
+  # cross-origin at http://localhost:${API_PORT} (baked in at build).
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_KEY: ${VITE_API_KEY:-}
+        VITE_API_URL: "http://localhost:${API_PORT:-8000}"
+    environment:
+      PORT: 3000
+    depends_on:
+      - studio
+    ports:
+      - "${WEB_PORT:-5173}:3000"
 
   # Same image as studio, run as a Procrastinate worker (runs the Agno pipeline).
   worker:
@@ -58,9 +74,12 @@ services:
         condition: service_healthy
     # scale: docker compose up --scale worker=N
 
-  # Node · @hyperframes/producer · compile → lint → render → MP4. Separate runtime (Node + Chrome + FFmpeg).
+  # Node · compile → lint → render → MP4. Separate runtime. Build context is the
+  # repo root (needs packages/compiler) with the render/ Dockerfile.
   render:
-    build: ./render
+    build:
+      context: .
+      dockerfile: render/Dockerfile
     env_file: .env
     depends_on:
       postgres:

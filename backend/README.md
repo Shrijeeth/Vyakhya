@@ -1,14 +1,13 @@
 # backend — Vyakhya Studio backend (brains)
 
-Python · FastAPI · **Agno** (Teams + Workflows) · **Procrastinate** (Postgres async jobs). Serves the built `frontend/` in production — together they are the single **Studio** app.
+Python · FastAPI · **Agno** (Teams + Workflows) · **Procrastinate** (Postgres async jobs). The **API** of the Studio app; the UI runs as a separate SSR `web` service (cross-origin, gated by `VYAKHYA_API_KEY` + CORS).
 
 Responsibilities:
 - Parse PDF → run the multi-agent pipeline (ingest → comprehend → plan → script → visualize → narrate → **verify** → assemble).
 - Emit **Scene-JSON** (Agno `output_schema` = Pydantic models — the single contract). **Never touches HTML.**
 - Model Config: store provider keys encrypted at rest (AES-256-GCM via `VYAKHYA_ENCRYPTION_KEY`).
-- REST + WebSocket/SSE for the UI; enqueue render via the `render/` service.
+- REST + SSE for the UI, gated by an `X-API-Key` shared key; enqueue render via the `render/` service.
 - Agno **Skills** (`LocalSkills` → `../skills/hyperframes/`) power the design-time Block-Author agent.
-- Serve the frontend build (static) so the app ships as one container.
 
 ## Stack
 
