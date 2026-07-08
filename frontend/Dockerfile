@@ -34,7 +34,7 @@ COPY --from=build /repo/frontend ./frontend
 WORKDIR /repo/frontend
 ENV PORT=3000
 EXPOSE 3000
-# Bun auto-serves the default `{ fetch }` export on $PORT. Must run with cwd =
-# frontend/ so TanStack Start resolves the vite manifest + client assets
-# (/assets/*) relative here — otherwise no CSS links are emitted (unstyled page).
-CMD ["bun", "dist/server/server.js"]
+# serve.ts serves the hashed client assets (dist/client) THEN delegates to the
+# SSR handler. The bare dist/server/server.js only does SSR and 404s /assets/*
+# → unstyled page + missing favicon. Do not replace with `bun server.js`.
+CMD ["bun", "serve.ts"]
