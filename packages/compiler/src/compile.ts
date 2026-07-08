@@ -111,7 +111,8 @@ function themeCss(width: number, height: number): string {
   .hf-custom{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
     container-type:size}
   .hf-custom>:not(style){flex:1 1 100%;width:100%;height:100%;min-height:100%}
-  .hf-stage-full{position:absolute;inset:0;max-width:none;width:100%;height:100%;text-align:initial}
+  .hf-stage-full{position:absolute;inset:0;max-width:none;width:100%;height:100%;text-align:initial;
+    background:#10131f;color:#f4f6fb}
   .hf-caption{position:absolute;left:50%;bottom:4%;transform:translateX(-50%);max-width:84%;
     text-align:center;font-size:${Math.round(width / 56)}px;padding:.4em 1em;border-radius:12px;
     background:rgba(8,10,18,.55);color:#fff;backdrop-filter:blur(6px)}
