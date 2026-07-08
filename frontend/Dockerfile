@@ -31,7 +31,10 @@ COPY --from=build /repo/package.json ./package.json
 COPY --from=build /repo/packages/compiler ./packages/compiler
 COPY --from=build /repo/frontend ./frontend
 
+WORKDIR /repo/frontend
 ENV PORT=3000
 EXPOSE 3000
-# Bun auto-serves the default `{ fetch }` export on $PORT.
-CMD ["bun", "/repo/frontend/dist/server/server.js"]
+# Bun auto-serves the default `{ fetch }` export on $PORT. Must run with cwd =
+# frontend/ so TanStack Start resolves the vite manifest + client assets
+# (/assets/*) relative here — otherwise no CSS links are emitted (unstyled page).
+CMD ["bun", "dist/server/server.js"]
