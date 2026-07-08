@@ -24,6 +24,17 @@ def _dsn() -> str:
 
 app = procrastinate.App(connector=procrastinate.PsycopgConnector(conninfo=_dsn()))
 
+_opened = False
+
+
+async def ensure_open() -> procrastinate.App:
+    """Open the app once per process (required before deferring jobs)."""
+    global _opened
+    if not _opened:
+        await app.open_async()
+        _opened = True
+    return app
+
 
 @app.task(name="vyakhya.run_pipeline")
 async def run_pipeline(run_id: str, project_id: str) -> None:
@@ -34,3 +45,14 @@ async def run_pipeline(run_id: str, project_id: str) -> None:
 
     log.info("worker executing pipeline run=%s project=%s", run_id, project_id)
     await _execute(run_id, project_id)
+
+
+@app.task(name="vyakhya.run_render")
+async def run_render(job_id: str) -> None:
+    """Execute a render job (progress persists on the job row; the API's SSE
+    stream polls it, so no cross-process broker is needed)."""
+    configure_logging()
+    from vyakhya.services.render import _execute_render
+
+    log.info("worker executing render job=%s", job_id)
+    await _execute_render(job_id)

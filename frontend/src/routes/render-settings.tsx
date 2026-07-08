@@ -2,9 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Download, Loader2, Play } from "lucide-react";
-import { getRenderSettings, saveRenderSettings, startRender } from "@/services/api";
-import type { RenderJob, RenderSettings } from "@/services/types";
+import { Save } from "lucide-react";
+import { getRenderSettings, saveRenderSettings } from "@/services/api";
+import type { RenderSettings } from "@/services/types";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown } from "lucide-react";
 
@@ -42,7 +41,6 @@ function RenderSettingsPage() {
     setLocal({ ...settings, [k]: v });
   };
 
-  const [job, setJob] = useState<RenderJob | null>(null);
   const saveMut = useMutation({
     mutationFn: (s: RenderSettings) => saveRenderSettings(s),
     onSuccess: () => {
@@ -50,13 +48,6 @@ function RenderSettingsPage() {
       toast.success("Settings saved");
     },
   });
-
-  const startRenderNow = () => {
-    if (!settings) return;
-    saveMut.mutate(settings);
-    setJob({ id: "starting", status: "queued", progress: 0 });
-    startRender("current", settings, (j) => setJob(j));
-  };
 
   if (!settings) return null;
 
@@ -70,12 +61,12 @@ function RenderSettingsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Render settings</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Configure the final export. Self-hosted — no plan limits.
+            Global export defaults — start renders from a project's editor (Export).
           </p>
         </div>
-        <Button onClick={startRenderNow} disabled={job?.status === "running"}>
-          <Play className="mr-1.5 h-4 w-4" />
-          Render
+        <Button onClick={() => saveMut.mutate(settings)} disabled={saveMut.isPending}>
+          <Save className="mr-1.5 h-4 w-4" />
+          Save defaults
         </Button>
       </div>
 
@@ -254,41 +245,6 @@ function RenderSettingsPage() {
           </CollapsibleContent>
         </Collapsible>
 
-        {job && (
-          <section className="rounded-lg border border-border bg-card p-5">
-            <div className="flex items-center gap-3">
-              {job.status === "running" ? (
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-              ) : (
-                <Play className="h-4 w-4 text-primary" />
-              )}
-              <div className="flex-1">
-                <div className="text-sm font-semibold">
-                  {job.status === "done" ? "Render complete" : "Rendering…"}
-                </div>
-                <Progress value={job.progress * 100} className="mt-2 h-1.5" />
-              </div>
-              <span className="tabular-nums text-xs text-muted-foreground">
-                {Math.round(job.progress * 100)}%
-              </span>
-            </div>
-            {job.status === "done" && job.outputUrl && (
-              <div className="mt-5 space-y-3">
-                <div className="overflow-hidden rounded-md border border-border bg-black">
-                  <video src={job.outputUrl} controls className="w-full" />
-                </div>
-                <div className="flex justify-end">
-                  <Button asChild>
-                    <a href={job.outputUrl} download>
-                      <Download className="mr-1.5 h-4 w-4" />
-                      Download {settings.format.toUpperCase()}
-                    </a>
-                  </Button>
-                </div>
-              </div>
-            )}
-          </section>
-        )}
       </div>
     </div>
   );

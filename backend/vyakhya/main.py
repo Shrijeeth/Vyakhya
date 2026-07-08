@@ -43,8 +43,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # Runs left RUNNING by a previous process died with it — fail them so
         # the stream endpoint doesn't attach to a run that can never finish.
         from vyakhya.services.pipeline import fail_orphaned_runs
+        from vyakhya.services.render import fail_orphaned_renders
 
         await fail_orphaned_runs()
+        await fail_orphaned_renders()
     except Exception:  # noqa: BLE001 - don't crash boot if DB is briefly unavailable
         log.exception("startup seeding skipped (database unavailable?)")
     yield

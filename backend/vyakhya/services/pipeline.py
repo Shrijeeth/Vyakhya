@@ -103,17 +103,11 @@ async def prepare_run(project_id: str) -> str:
     return run_id
 
 
-_procrastinate_open = False
-
-
 async def _defer_to_worker(run_id: str, project_id: str) -> None:
     """Defer the run to the Procrastinate worker; stores the job id on the run."""
-    global _procrastinate_open
-    from vyakhya.worker import app as job_app
+    from vyakhya.worker import ensure_open
 
-    if not _procrastinate_open:
-        await job_app.open_async()
-        _procrastinate_open = True
+    job_app = await ensure_open()
     job_id = await job_app.configure_task("vyakhya.run_pipeline").defer_async(
         run_id=run_id, project_id=project_id
     )

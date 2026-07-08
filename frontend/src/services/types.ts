@@ -135,7 +135,10 @@ export interface RenderJob {
   id: string;
   status: "queued" | "running" | "done" | "error";
   progress: number;
-  outputUrl?: string;
+  outputUrl?: string | null;
+  error?: string | null;
+  createdAt?: string | null;
+  finishedAt?: string | null;
 }
 
 export interface RenderSettings {

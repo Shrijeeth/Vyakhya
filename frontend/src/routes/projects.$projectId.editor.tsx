@@ -1,13 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
-import { Download } from "lucide-react";
 import { compileProjectPreview, getEditorProject } from "@/services/api";
 import { useEditorStore } from "@/store/editor-store";
 import { Button } from "@/components/ui/button";
 import { SceneList } from "@/components/editor/scene-list";
 import { Inspector } from "@/components/editor/inspector";
 import { PreviewPlayer } from "@/components/editor/preview-player";
+import { RenderDialog } from "@/components/editor/render-dialog";
 
 export const Route = createFileRoute("/projects/$projectId/editor")({
   component: EditorPage,
@@ -96,10 +96,7 @@ function EditorPage() {
           >
             View pipeline
           </Button>
-          <Button size="sm" onClick={() => navigate({ to: "/render-settings" })}>
-            <Download className="mr-1.5 h-3.5 w-3.5" />
-            Export
-          </Button>
+          <RenderDialog projectId={projectId} />
         </div>
       </div>
       <div className="grid min-h-0 flex-1 grid-cols-[300px_1fr_360px]">

@@ -274,21 +274,22 @@ export function saveRenderSettings(s: RenderSettings): Promise<RenderSettings> {
   });
 }
 
-// Start a render and stream job progress (POST-based SSE).
-export function startRender(
-  projectId: string,
-  settings: RenderSettings,
-  onEvent: (job: RenderJob) => void,
-): () => void {
-  return streamSSE(
-    `/projects/${projectId}/render`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(settings),
-    },
-    (e) => onEvent(e as RenderJob),
-  );
+// Start a background render for the project; returns the job immediately.
+// Progress is streamed separately via subscribeRenderJob (survives reloads).
+export function startRender(projectId: string, settings?: RenderSettings): Promise<RenderJob> {
+  return http<RenderJob>(`/projects/${projectId}/render`, {
+    method: "POST",
+    body: JSON.stringify(settings ?? null),
+  });
+}
+
+export function listRenders(projectId: string): Promise<RenderJob[]> {
+  return http<RenderJob[]>(`/projects/${projectId}/renders`);
+}
+
+// Live job progress (SSE over the persisted job state). Returns unsubscribe.
+export function subscribeRenderJob(jobId: string, onEvent: (job: RenderJob) => void): () => void {
+  return streamSSE(`/renders/${jobId}/stream`, { method: "GET" }, (e) => onEvent(e as RenderJob));
 }
 
 // ---------------- Visual type schemas ----------------

@@ -6,10 +6,10 @@ import {
   getAgentSequence,
   getRenderSettings,
   listProjects,
-  startRender,
+  subscribeRenderJob,
   visualTypeSchemas,
 } from "./api";
-import type { Project, RenderSettings, Scene } from "./types";
+import type { Project, Scene } from "./types";
 
 const project: Project = {
   id: "p1",
@@ -110,13 +110,13 @@ describe("compileScenePreview (client-side compiler)", () => {
       citations: [],
     };
     const html = await compileScenePreview(scene);
-    expect(html).toContain("data-hf-composition");
+    expect(html).toContain("data-composition-id");
     expect(html).toContain("Hi");
     expect(fetchMock).not.toHaveBeenCalled(); // preview is local
   });
 });
 
-describe("startRender (SSE over fetch)", () => {
+describe("subscribeRenderJob (SSE over fetch)", () => {
   beforeEach(() => vi.restoreAllMocks());
 
   it("parses SSE frames into job events", async () => {
@@ -131,15 +131,14 @@ describe("startRender (SSE over fetch)", () => {
     });
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(body, { status: 200 }));
 
-    const events: unknown[] = [];
-    const settings = { fps: 30 } as RenderSettings;
+    const events: { status: string; outputUrl?: string | null }[] = [];
     await new Promise<void>((resolve) => {
-      startRender("p1", settings, (job) => {
+      subscribeRenderJob("r1", (job) => {
         events.push(job);
         if (job.status === "done") resolve();
       });
     });
     expect(events).toHaveLength(2);
-    expect((events.at(-1) as { outputUrl: string }).outputUrl).toBe("http://x/o.mp4");
+    expect(events.at(-1)?.outputUrl).toBe("http://x/o.mp4");
   });
 });

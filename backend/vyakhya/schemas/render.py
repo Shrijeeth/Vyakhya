@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from vyakhya.enums import RenderStatus, VideoCodec, VideoFormat
@@ -27,3 +28,6 @@ class RenderJobOut(CamelModel):
     status: RenderStatus
     progress: float
     output_url: str | None = None
+    error: str | None = None
+    created_at: datetime | None = None
+    finished_at: datetime | None = None
