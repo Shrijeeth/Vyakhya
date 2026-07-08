@@ -1,6 +1,14 @@
 // compile(doc) → HyperFrames-compatible HTML. One deterministic output used by
 // both the browser editor (live preview) and the render worker (headless → MP4),
 // guaranteeing preview == final.
+//
+// The output follows the HyperFrames composition contract (skills/hyperframes-core):
+//   - one root element with data-composition-id / data-width / data-height /
+//     data-duration (seconds)
+//   - every timed element is a `class="clip"` DIRECT child of the root with
+//     id / data-start / data-duration (seconds) / data-track-index
+//   - motion is finite CSS keyframes offset to each clip's start via the
+//     `--t0` custom property (seek-safe, no clocks, no randomness)
 
 import { registry, hasVisual } from "./registry.js";
 import type { CompileOptions, SceneDocument, SceneNode } from "./types.js";
@@ -24,22 +32,34 @@ export function getCompositionDuration(
   return doc.scenes.reduce((sum, s) => sum + resolveDurationMs(s, autoMs), 0);
 }
 
+const sec = (ms: number) => (Math.round(ms) / 1000).toString();
+
 function caption(scene: SceneNode): string {
   const style = scene.captionStyle ?? "none";
   if (style === "none" || !scene.narration) return "";
   return `<div class="hf-caption hf-caption-${style}">${esc(scene.narration)}</div>`;
 }
 
-function renderScene(scene: SceneNode, startMs: number, durationMs: number): string {
+function renderScene(
+  scene: SceneNode,
+  index: number,
+  startMs: number,
+  durationMs: number,
+): string {
   const type = scene.visualType;
   const inner = hasVisual(type)
     ? registry[type](scene.params ?? {})
     : `<div class="hf-unknown">Unsupported visual: ${esc(type)}</div>`;
   const transition = scene.transition ?? "fade";
+  // `--t0` shifts every entrance animation to the clip's start so the same
+  // markup is correct in the seek-driven preview AND the HyperFrames render.
   return `<section class="clip hf-scene hf-transition-${transition}"
+    id="scene-${index}"
+    style="--t0:${sec(startMs)}s"
     data-scene-id="${esc(scene.id)}"
-    data-start="${startMs}"
-    data-duration="${durationMs}"
+    data-start="${sec(startMs)}"
+    data-duration="${sec(durationMs)}"
+    data-track-index="0"
     data-visual="${esc(type)}">
     <div class="hf-stage">${inner}</div>
     ${caption(scene)}
@@ -51,7 +71,7 @@ function themeCss(width: number, height: number): string {
   :root{--hf-bg:#faf7f0;--hf-fg:#1c1e2e;--hf-muted:#4a4f66;--hf-accent:#4b3fbf;--hf-accent-bg:#eae7ff}
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;background:#000}
-  .hf-composition{position:relative;width:${width}px;height:${height}px;margin:0 auto;
+  .hf-composition{position:relative;width:${width}px;height:${height}px;
     background:var(--hf-bg);color:var(--hf-fg);overflow:hidden;
     font-family:Inter,system-ui,-apple-system,sans-serif}
   .hf-scene{position:absolute;inset:0;display:flex;flex-direction:column;
@@ -74,33 +94,33 @@ function themeCss(width: number, height: number): string {
   .hf-compare{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:1em;width:100%;font-size:${Math.round(width / 40)}px}
   .hf-compare-side{padding:1em;border-radius:12px;background:#fff}
   .hf-compare-divider{width:2px;height:60%;background:var(--hf-accent);opacity:.4}
-  .hf-kinetic-word{font-size:${Math.round(width / 14)}px;font-weight:700;color:var(--hf-accent);letter-spacing:-0.03em}
+  .hf-kinetic-word{display:inline-block;font-size:${Math.round(width / 14)}px;font-weight:700;color:var(--hf-accent);letter-spacing:-0.03em}
   .hf-caption{position:absolute;left:0;right:0;bottom:6%;text-align:center;font-size:${Math.round(width / 56)}px;padding:0 8%}
   .hf-caption-minimal{color:var(--hf-fg)}
   .hf-caption-bold{color:#fff;font-weight:700;text-shadow:0 2px 12px rgba(0,0,0,.6)}
   .hf-unknown{color:#b00}
-  /* Entrance animations. The preview runtime freezes them per frame (seekable);
-     opened directly in a browser they simply play once. */
+  /* Entrance animations, offset to each clip's start (--t0) with per-element
+     stagger (--i). Finite + property-allowlisted → seekable and render-safe. */
   @keyframes hf-rise{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:none}}
   @keyframes hf-in{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
   @keyframes hf-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
   @keyframes hf-pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
-  .hf-stage{animation:hf-rise .6s both ease-out}
-  .hf-bullet{animation:hf-in .5s both ease-out}
-  .hf-bar-fill{transform-origin:left center;animation:hf-grow .7s both ease-out}
-  .hf-token{animation:hf-pop .4s both ease-out}
-  .hf-kinetic-word{animation:hf-pop .5s both ease-out}`;
+  .hf-stage{animation:hf-rise .6s both ease-out;animation-delay:var(--t0,0s)}
+  .hf-bullet{animation:hf-in .5s both ease-out;animation-delay:calc(var(--t0,0s) + .15s + var(--i,0)*.12s)}
+  .hf-bar-fill{transform-origin:left center;animation:hf-grow .7s both ease-out;animation-delay:calc(var(--t0,0s) + .1s + var(--i,0)*.15s)}
+  .hf-token{animation:hf-pop .4s both ease-out;animation-delay:calc(var(--t0,0s) + var(--i,0)*.06s)}
+  .hf-kinetic-word{animation:hf-pop .5s both ease-out;animation-delay:var(--t0,0s)}`;
 }
 
-// Injected into preview docs: pause the entrance animations (the runtime sets a
-// negative animation-delay per element to render the frame at the seeked time)
-// and show the active scene / freeze its animations on each hf-seek message.
+// Injected into preview docs only: pause the entrance animations (the runtime
+// re-bases each element's animation-delay so the frame at the seeked time is
+// exact) and show the active scene on each hf-seek message (milliseconds).
 function previewRuntime(): string {
   return `<style>.hf-stage,.hf-bullet,.hf-bar-fill,.hf-token,.hf-kinetic-word{animation-play-state:paused}</style>
 <script>(function(){var scenes=[].slice.call(document.querySelectorAll('.hf-scene'));
-function stag(l,step,L){for(var i=0;i<l.length;i++){l[i].style.animationDelay=(i*step-L)+'ms';}}
+function stag(l,base,step,L){for(var i=0;i<l.length;i++){l[i].style.animationDelay=(base+i*step-L)+'ms';}}
 function one(el,L){if(el)el.style.animationDelay=(-L)+'ms';}
-function seek(t){var shown=false;for(var i=0;i<scenes.length;i++){var sc=scenes[i],s=+sc.getAttribute('data-start')||0,d=+sc.getAttribute('data-duration')||0,a=(t>=s&&t<s+d);sc.style.display=a?'flex':'none';if(a){shown=true;var L=t-s;one(sc.querySelector('.hf-stage'),L);one(sc.querySelector('.hf-kinetic-word'),L);stag(sc.querySelectorAll('.hf-bullet'),120,L);stag(sc.querySelectorAll('.hf-token'),60,L);stag(sc.querySelectorAll('.hf-bar-fill'),150,L);}}
+function seek(t){var shown=false;for(var i=0;i<scenes.length;i++){var sc=scenes[i],s=1000*(parseFloat(sc.getAttribute('data-start'))||0),d=1000*(parseFloat(sc.getAttribute('data-duration'))||0),a=(t>=s&&t<s+d);sc.style.display=a?'flex':'none';if(a){shown=true;var L=t-s;one(sc.querySelector('.hf-stage'),L);one(sc.querySelector('.hf-kinetic-word'),L);stag(sc.querySelectorAll('.hf-bullet'),150,120,L);stag(sc.querySelectorAll('.hf-token'),0,60,L);stag(sc.querySelectorAll('.hf-bar-fill'),100,150,L);}}
 if(!shown&&scenes.length){scenes[scenes.length-1].style.display='flex';}}
 addEventListener('message',function(e){var m=e.data;if(m&&m.type==='hf-seek')seek(m.t|0);});seek(0);})();</script>`;
 }
@@ -108,9 +128,11 @@ addEventListener('message',function(e){var m=e.data;if(m&&m.type==='hf-seek')see
 /**
  * Compile a Scene-JSON document into HyperFrames HTML.
  *
- * The output carries per-clip `data-start`/`data-duration` timing (ms) on a
- * single deterministic timeline; the HyperFrames runtime seeks it during
- * preview and render. Pass `fragment: true` to get just the composition node.
+ * The output is a standalone HyperFrames composition (root
+ * `data-composition-id` + per-clip `data-start`/`data-duration` in seconds on
+ * one deterministic timeline). `npx hyperframes render` renders it; the editor
+ * preview drives the same document with `{ preview: true }`. Pass
+ * `fragment: true` to get just the composition node.
  */
 export function compile(doc: SceneDocument, options: CompileOptions = {}): string {
   const autoMs = options.autoDurationMs ?? DEFAULT_AUTO_DURATION_MS;
@@ -118,30 +140,33 @@ export function compile(doc: SceneDocument, options: CompileOptions = {}): strin
 
   let cursor = 0;
   const scenes = doc.scenes
-    .map((scene) => {
+    .map((scene, index) => {
       const duration = resolveDurationMs(scene, autoMs);
-      const html = renderScene(scene, cursor, duration);
+      const html = renderScene(scene, index, cursor, duration);
       cursor += duration;
       return html;
     })
     .join("\n");
 
   const total = cursor;
-  const composition = `<main class="hf-composition" data-hf-composition
-    data-duration="${total}" data-width="${width}" data-height="${height}"
+  const composition = `<div id="root" class="hf-composition" data-composition-id="main"
+    data-duration="${sec(total)}" data-width="${width}" data-height="${height}"
     data-aspect="${esc(doc.aspectRatio)}" data-project="${esc(doc.id)}">
 ${scenes}
-  </main>`;
+  </div>`;
 
   if (options.fragment) return composition;
 
   // Preview-only: center + scale the fixed-pixel composition to fit the iframe.
+  // Absolute + translate centering — the composition is larger than the
+  // viewport, so grid/flex centering cannot center it (no free space in the
+  // auto track); scale() alone leaves it hanging off the bottom-right.
   const doFit = options.fit || options.preview;
   const fitCss = doFit
-    ? `html,body{height:100%}body{display:grid;place-items:center;overflow:hidden}`
+    ? `html,body{height:100%;overflow:hidden}.hf-composition{position:absolute;top:50%;left:50%}`
     : "";
   const fitScript = doFit
-    ? `<script>(function(){var c=document.querySelector('.hf-composition');if(!c)return;function f(){var s=Math.min(innerWidth/${width},innerHeight/${height});c.style.transform='scale('+s+')';c.style.transformOrigin='center center';}addEventListener('resize',f);f();})();</script>`
+    ? `<script>(function(){var c=document.querySelector('.hf-composition');if(!c)return;function f(){var s=Math.min(innerWidth/${width},innerHeight/${height});c.style.transform='translate(-50%,-50%) scale('+s+')';}addEventListener('resize',f);f();})();</script>`
     : "";
   const runtime = options.preview ? previewRuntime() : "";
 

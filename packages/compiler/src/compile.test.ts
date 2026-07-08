@@ -50,16 +50,19 @@ describe("compile", () => {
   it("emits a full document with a composition and one clip per scene", () => {
     const html = compile(doc);
     expect(html.startsWith("<!doctype html>")).toBe(true);
-    expect(html).toContain('data-hf-composition');
+    expect(html).toContain('data-composition-id="main"');
     expect((html.match(/class="clip /g) ?? []).length).toBe(2);
     expect(html).toContain('data-width="1920"');
+    // HyperFrames contract: unique clip ids + track index.
+    expect(html).toContain('id="scene-0"');
+    expect(html).toContain('data-track-index="0"');
   });
 
-  it("lays clips out on a sequential timeline", () => {
+  it("lays clips out on a sequential timeline (seconds)", () => {
     const html = compile(doc, { autoDurationMs: 5000 });
     expect(html).toContain('data-start="0"');
-    expect(html).toContain('data-start="6000"'); // second clip starts after the first
-    expect(html).toContain('data-duration="11000"'); // composition total
+    expect(html).toContain('data-start="6"'); // second clip starts after the first
+    expect(html).toContain('data-duration="11"'); // composition total
   });
 
   it("escapes user content (no injection)", () => {
@@ -97,7 +100,7 @@ describe("compile", () => {
 
   it("supports fragment output", () => {
     const frag = compile(doc, { fragment: true });
-    expect(frag.startsWith("<main")).toBe(true);
+    expect(frag.startsWith("<div")).toBe(true);
     expect(frag).not.toContain("<!doctype");
   });
 });

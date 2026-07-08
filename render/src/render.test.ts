@@ -32,7 +32,7 @@ const settings: RenderSettings = {
 describe("runHyperframeLint", () => {
   it("passes valid compiled HTML", () => {
     const html =
-      '<main data-hf-composition><section class="clip" data-start="0" data-duration="4000"></section></main>';
+      '<div data-composition-id="main"><section class="clip" data-start="0" data-duration="4"></section></div>';
     expect(runHyperframeLint(html).ok).toBe(true);
   });
 
@@ -42,7 +42,7 @@ describe("runHyperframeLint", () => {
 
   it("fails on non-positive durations and non-determinism", () => {
     const bad =
-      '<main data-hf-composition><section class="clip" data-start="0" data-duration="0"></section><script>Math.random()</script></main>';
+      '<div data-composition-id="main"><section class="clip" data-start="0" data-duration="0"></section><script>Math.random()</script></div>';
     const res = runHyperframeLint(bad);
     expect(res.ok).toBe(false);
     expect(res.errors.some((e) => e.includes("duration"))).toBe(true);

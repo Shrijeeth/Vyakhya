@@ -41,7 +41,9 @@ function EditorPage() {
   // which scene shows + animates. Recompiled only when the scenes change.
   const previewHtml = useMemo(() => (project ? compileProjectPreview(project) : ""), [project]);
 
-  // Selecting a scene jumps the playhead to its start so the preview follows.
+  // Selecting a scene jumps the playhead just past its entrance animation —
+  // the exact start is the animation's from-state (an intentionally blank
+  // first frame), which reads as "empty preview" when paused there.
   useEffect(() => {
     if (!project || !selectedSceneId) return;
     let start = 0;
@@ -49,8 +51,16 @@ function EditorPage() {
       if (sc.id === selectedSceneId) break;
       start += typeof sc.durationMs === "number" ? sc.durationMs : 6000;
     }
-    setCurrentTime(start);
+    setCurrentTime(start + 800);
   }, [selectedSceneId, project, setCurrentTime]);
+
+  // Same for the initial load: park the playhead after scene 0's entrance.
+  useEffect(() => {
+    if (project && project.scenes.length > 0 && currentTime === 0 && !playing) {
+      setCurrentTime(Math.min(800, project.totalDurationMs));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run on project load only
+  }, [project?.id]);
 
   // fake playback tick
   useEffect(() => {

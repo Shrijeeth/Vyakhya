@@ -47,17 +47,15 @@ export function PreviewPlayer({
   }, [seekMs, html]);
 
   const aspectClass =
-    aspectRatio === "9:16"
-      ? "aspect-[9/16] max-h-full"
-      : aspectRatio === "1:1"
-        ? "aspect-square max-h-full"
-        : "aspect-video";
+    aspectRatio === "9:16" ? "aspect-[9/16]" : aspectRatio === "1:1" ? "aspect-square" : "aspect-video";
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-1 items-center justify-center overflow-hidden bg-muted/30 p-6">
+      {/* min-h-0 lets this row shrink so the transport bar below is never
+          pushed out of view; max-h-full caps the aspect box against it. */}
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-muted/30 p-6">
         <div
-          className={`${aspectClass} w-full max-w-[1100px] overflow-hidden rounded-lg border border-border bg-card shadow-lg`}
+          className={`${aspectClass} max-h-full w-full max-w-[1100px] overflow-hidden rounded-lg border border-border bg-black shadow-lg`}
         >
           <iframe
             ref={iframeRef}

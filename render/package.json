@@ -1,7 +1,7 @@
 {
   "name": "@vyakhya/render",
   "version": "0.1.0",
-  "description": "Vyakhya render service — Scene-JSON → compile → lint → render → MP4",
+  "description": "Vyakhya render service \u2014 Scene-JSON \u2192 compile \u2192 lint \u2192 render \u2192 MP4",
   "type": "module",
   "main": "./dist/server.js",
   "scripts": {
@@ -13,8 +13,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.700.0",
+    "@aws-sdk/s3-request-presigner": "^3.700.0",
     "@vyakhya/compiler": "workspace:*",
-    "fastify": "^5.2.0"
+    "fastify": "^5.2.0",
+    "hyperframes": "^0.7.42"
   },
   "devDependencies": {
     "@types/node": "^22.16.5",

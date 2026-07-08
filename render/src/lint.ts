@@ -8,8 +8,8 @@ export interface LintResult {
 }
 
 const CLIP_RE = /<section[^>]*class="clip[^"]*"[^>]*>/g;
-const START_RE = /data-start="(\d+)"/g;
-const DURATION_RE = /data-duration="(\d+)"/g;
+const START_RE = /data-start="([\d.]+)"/g;
+const DURATION_RE = /data-duration="([\d.]+)"/g;
 
 export function runHyperframeLint(html: string): LintResult {
   const errors: string[] = [];
@@ -18,8 +18,8 @@ export function runHyperframeLint(html: string): LintResult {
   if (!html || typeof html !== "string") {
     return { ok: false, errors: ["empty or non-string html"], warnings };
   }
-  if (!html.includes("data-hf-composition")) {
-    errors.push("missing composition root (data-hf-composition)");
+  if (!html.includes("data-composition-id")) {
+    errors.push("missing composition root (data-composition-id)");
   }
 
   const clips = html.match(CLIP_RE) ?? [];

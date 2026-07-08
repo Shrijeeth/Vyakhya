@@ -18,16 +18,28 @@ import { esc } from "./util.js";
 
 export type VisualRenderer = (params: Record<string, unknown>) => string;
 
+// Agent output sometimes lands params under a sibling key (e.g. kinetic.type
+// with `tokens` instead of `text`). Renderers therefore fall back across the
+// plausible keys instead of rendering a blank stage.
+const str = (v: unknown): string | undefined =>
+  typeof v === "string" && v.trim() ? v : undefined;
+const strList = (v: unknown): string[] | undefined =>
+  Array.isArray(v) && v.length ? v.map((x) => String(x)).filter(Boolean) : undefined;
+
 function titleCard(p: Record<string, unknown>): string {
   const { title, subtitle } = p as TitleCardParams;
+  const heading = str(title) ?? str(p.text) ?? str(p.caption) ?? "";
+  const sub = str(subtitle);
   return `<div class="hf-title">
-    <h1 class="hf-h1">${esc(title ?? "")}</h1>
-    ${subtitle ? `<p class="hf-sub">${esc(subtitle)}</p>` : ""}
+    <h1 class="hf-h1">${esc(heading)}</h1>
+    ${sub ? `<p class="hf-sub">${esc(sub)}</p>` : ""}
   </div>`;
 }
 
 function bulletReveal(p: Record<string, unknown>): string {
-  const bullets = ((p as BulletRevealParams).bullets ?? []).filter(Boolean);
+  const bullets = (strList((p as BulletRevealParams).bullets) ?? strList(p.tokens) ?? []).filter(
+    Boolean,
+  );
   const items = bullets
     .map(
       (b, i) =>
@@ -39,16 +51,17 @@ function bulletReveal(p: Record<string, unknown>): string {
 
 function figureCallout(p: Record<string, unknown>): string {
   const { caption, figureRef } = p as FigureCalloutParams;
+  const cap = str(caption) ?? str(p.text) ?? str(p.title);
   return `<figure class="hf-figure">
-    <div class="hf-figbox">${esc(figureRef ?? "Figure")}</div>
-    ${caption ? `<figcaption class="hf-figcap">${esc(caption)}</figcaption>` : ""}
+    <div class="hf-figbox">${esc(str(figureRef) ?? "Figure")}</div>
+    ${cap ? `<figcaption class="hf-figcap">${esc(cap)}</figcaption>` : ""}
   </figure>`;
 }
 
 function equationBuild(p: Record<string, unknown>): string {
   // LaTeX is rendered by the HyperFrames math block at render time; here we emit
   // the source in a deterministic container.
-  const latex = (p as EquationBuildParams).latex ?? "";
+  const latex = str((p as EquationBuildParams).latex) ?? str(p.text) ?? "";
   return `<div class="hf-equation" data-latex="${esc(latex)}"><code>${esc(latex)}</code></div>`;
 }
 
@@ -69,7 +82,11 @@ function datavizBar(p: Record<string, unknown>): string {
 }
 
 function diagramAttention(p: Record<string, unknown>): string {
-  const tokens = (p as DiagramAttentionParams).tokens ?? [];
+  const tokens =
+    strList((p as DiagramAttentionParams).tokens) ??
+    strList(p.bullets) ??
+    (str(p.caption) ?? str(p.text))?.split(/\s+/).slice(0, 8) ??
+    [];
   const chips = tokens
     .map((t, i) => `<span class="hf-token" style="--i:${i}">${esc(t)}</span>`)
     .join("");
@@ -86,7 +103,12 @@ function comparisonSplit(p: Record<string, unknown>): string {
 }
 
 function kineticType(p: Record<string, unknown>): string {
-  const text = (p as KineticTypeParams).text ?? "";
+  const text =
+    str((p as KineticTypeParams).text) ??
+    strList(p.tokens)?.join(" ") ??
+    str(p.title) ??
+    str(p.caption) ??
+    "";
   return `<div class="hf-kinetic"><span class="hf-kinetic-word">${esc(text)}</span></div>`;
 }
 

@@ -132,6 +132,9 @@ _DESIGNER_INSTRUCTIONS = [
     "figure.callout {caption, figureRef}; equation.build {latex}; "
     "dataviz.bar {series: [{label, value}]}; diagram.attention {tokens: string[]}; "
     "comparison.split {left, right}; kinetic.type {text}.",
+    "params keys MUST match the scene's visualType exactly (e.g. kinetic.type uses "
+    "`text`, never `tokens`; diagram.attention uses `tokens`, never `caption`) — a "
+    "scene with params under the wrong key renders as a BLANK frame.",
     "Every scene needs at least one citation grounding it to a source span in the "
     "paper (e.g. '§3.2, p. 4').",
 ]
@@ -286,6 +289,35 @@ def _coerce_document(content: object) -> GenDocument | None:
     return GenDocument(scenes=scenes)
 
 
+def _normalize_scene_params(scene: GenScene) -> None:
+    """Repair params the model filed under a sibling key — e.g. kinetic.type
+    with `tokens` instead of `text` — so every visual renders non-blank."""
+    p = scene.params
+    vt = scene.visual_type
+    if vt is VisualType.KINETIC_TYPE and not p.text:
+        p.text = " ".join(p.tokens) if p.tokens else (p.title or p.caption or scene.narration[:80])
+    elif vt is VisualType.DIAGRAM_ATTENTION and not p.tokens:
+        source = p.caption or p.text or scene.narration
+        p.tokens = p.bullets or (source.split()[:8] if source else None)
+    elif vt is VisualType.BULLET_REVEAL and not p.bullets:
+        p.bullets = p.tokens
+    elif vt is VisualType.TITLE_CARD and not p.title:
+        p.title = p.text or p.caption or scene.narration[:60]
+    elif vt is VisualType.FIGURE_CALLOUT and not p.caption:
+        p.caption = p.text or p.title
+    elif vt is VisualType.EQUATION_BUILD and not p.latex:
+        p.latex = p.text
+    elif vt is VisualType.COMPARISON_SPLIT and not (p.left and p.right):
+        if p.bullets and len(p.bullets) >= 2:
+            p.left, p.right = p.left or p.bullets[0], p.right or p.bullets[1]
+
+
+def _dump_scenes(doc: GenDocument) -> list[dict]:
+    for s in doc.scenes:
+        _normalize_scene_params(s)
+    return [s.model_dump(by_alias=True, exclude_none=True) for s in doc.scenes]
+
+
 def _scenes_json(doc: GenDocument) -> str:
     import json
 
@@ -393,9 +425,7 @@ class AgnoPipelineExecutor:
                     yield _event(PipelineEventType.LOG, f"[{label}] {last_error}", agent_id)
                     yield _event(PipelineEventType.STATUS, AgentStatus.ERROR.value, agent_id)
                     raise RuntimeError(f"visual designer produced no scenes ({last_error})")
-                scenes_payload = [
-                    s.model_dump(by_alias=True, exclude_none=True) for s in doc.scenes
-                ]
+                scenes_payload = _dump_scenes(doc)
                 yield _event(
                     PipelineEventType.LOG,
                     f"[{label}] produced {len(scenes_payload)} scenes",
@@ -481,9 +511,7 @@ class AgnoPipelineExecutor:
                         revised = None
                     if revised is not None and revised.scenes:
                         doc = revised
-                        scenes_payload = [
-                            s.model_dump(by_alias=True, exclude_none=True) for s in doc.scenes
-                        ]
+                        scenes_payload = _dump_scenes(doc)
                         yield _event(
                             PipelineEventType.LOG,
                             f"[{label}] designer revised → {len(doc.scenes)} scenes",
@@ -545,9 +573,7 @@ class AgnoPipelineExecutor:
                         )
                         break
                     doc = fixed
-                    scenes_payload = [
-                        s.model_dump(by_alias=True, exclude_none=True) for s in doc.scenes
-                    ]
+                    scenes_payload = _dump_scenes(doc)
                     yield _event(
                         PipelineEventType.LOG,
                         f"[{label}] designer adjusted → {len(doc.scenes)} scenes, "

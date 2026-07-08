@@ -94,6 +94,12 @@ services:
       context: .
       dockerfile: render/Dockerfile
     env_file: .env
+    environment:
+      # .env's RENDER_PORT is the HOST port; inside the container always 8080
+      # (the compose port mapping and RENDER_SERVICE_URL depend on it).
+      RENDER_PORT: 8080
+    # Chrome (hyperframes engine) needs a real shared-memory segment.
+    shm_size: "1gb"
     depends_on:
       postgres:
         condition: service_healthy
