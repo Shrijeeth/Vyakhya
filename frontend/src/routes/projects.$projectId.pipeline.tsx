@@ -178,7 +178,7 @@ function PipelinePage() {
           <div>
             <h1 className="text-lg font-semibold">Generation pipeline</h1>
             <p className="text-xs text-muted-foreground">
-              Live view of the agent crew turning the paper into an editable video.
+              Live view of the agent crew turning the document into an editable video.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -289,7 +289,7 @@ function PipelinePage() {
               <div className="border-b border-border px-5 py-3">
                 <div className="text-sm font-semibold">Verifier flags</div>
                 <div className="text-[11px] text-muted-foreground">
-                  Every claim in the narration, checked against the paper.
+                  Every claim in the narration, checked against the document.
                 </div>
               </div>
               <ScrollArea className="flex-1">

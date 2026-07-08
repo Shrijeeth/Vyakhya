@@ -135,13 +135,13 @@ const ROLES: {
   {
     id: "comprehension",
     label: "Comprehension",
-    hint: "Reads the paper and structures its argument",
+    hint: "Reads the document and structures its argument",
   },
   { id: "planner", label: "Planner", hint: "Turns comprehension into scene beats" },
   { id: "scriptwriter", label: "Scriptwriter", hint: "Writes narration for each scene" },
   { id: "visual_designer", label: "Visual Designer", hint: "Picks visual types and parameters" },
   { id: "narrator", label: "Narrator (TTS)", hint: "Speaks the narration" },
-  { id: "verifier", label: "Verifier", hint: "Checks every claim against the paper" },
+  { id: "verifier", label: "Verifier", hint: "Checks every claim against the document" },
 ];
 
 function StatusPill({ status }: { status: ProviderConnection["status"] }) {

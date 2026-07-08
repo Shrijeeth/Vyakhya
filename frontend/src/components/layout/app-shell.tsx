@@ -85,7 +85,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </>
               ) : (
                 <span className="text-sm text-muted-foreground">
-                  Turn research papers into editable explainer videos.
+                  Turn documents into editable explainer videos.
                 </span>
               )}
             </div>

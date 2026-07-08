@@ -60,7 +60,7 @@ CREATE TYPE video_codec       AS ENUM ('h264', 'h265', 'vp9', 'av1');
 ## Tables
 
 ### `projects`
-One row per paper-to-video project. Maps to `Project` / `EditorProject` (the
+One row per document-to-video project. Maps to `Project` / `EditorProject` (the
 editor's `title` + `aspectRatio` live here; scenes are child rows).
 
 ```sql

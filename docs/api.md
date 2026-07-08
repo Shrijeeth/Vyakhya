@@ -70,11 +70,11 @@ List all projects. → `Project[]`
 → `Project` (404 if missing).
 
 ### `POST /api/projects`
-Create a project from an uploaded paper. **multipart/form-data** (carries the PDF).
+Create a project from an uploaded document. **multipart/form-data** (carries the PDF).
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `file` | file (PDF) | the paper |
+| `file` | file (PDF) | the source document |
 | `audience` | `AudienceLevel` | |
 | `aspectRatio` | `AspectRatio` | |
 | `language` | string | e.g. `en` |
@@ -259,7 +259,7 @@ Editable prompt templates per agent, with reset-to-default.
   "template": "You are a research analyst…{{paper_text}}",
   "defaultTemplate": "You are a research analyst…{{paper_text}}",
   "variables": [
-    { "name": "paper_text", "description": "Full parsed text of the paper" }
+    { "name": "paper_text", "description": "Full parsed text of the source document" }
   ]
 }
 ```

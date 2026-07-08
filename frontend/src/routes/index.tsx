@@ -113,7 +113,7 @@ function EmptyState({ onNew }: { onNew: () => void }) {
       <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent text-accent-foreground">
         <FilePlus2 className="h-6 w-6" />
       </div>
-      <h2 className="text-lg font-semibold">Explain your first paper</h2>
+      <h2 className="text-lg font-semibold">Explain your first document</h2>
       <p className="mt-2 text-sm text-muted-foreground">
         Upload a PDF and Vyakhya's agent crew will draft a full, editable explainer video —
         narration, visuals, and citations included.
@@ -160,7 +160,7 @@ function ProjectsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Every paper you've explained, in one place.
+            Every document you've explained, in one place.
           </p>
         </div>
         <Button onClick={() => setDialogOpen(true)}>

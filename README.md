@@ -2,7 +2,7 @@
 
 # Vyakhya · व्याख्या
 
-**Open-source, multi-agent engine that turns any paper or PDF into a detailed, editable explainer video.**
+**Open-source, multi-agent engine that turns any document — paper, report, article, spec — into a detailed, editable explainer video.**
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 ![Status](https://img.shields.io/badge/status-early%20development-orange.svg)
@@ -14,11 +14,11 @@
 
 ## What is Vyakhya?
 
-**Vyakhya** (Sanskrit *व्याख्या* — "explanation, exposition") reads a research paper and a crew of AI agents collaborate to produce a **detailed, section-by-section explainer video** — figures, equations, and all. Unlike black-box tools, the output is **structured and editable**: you tweak scenes and narration in an editor, not raw HTML, and re-render deterministically. It runs **entirely on your own machine**.
+**Vyakhya** (Sanskrit *व्याख्या* — "explanation, exposition") reads any document (like NotebookLM, but for video) and a crew of AI agents collaborate to produce a **detailed, section-by-section explainer video** — figures, equations, and all. Unlike black-box tools, the output is **structured and editable**: you tweak scenes and narration in an editor, not raw HTML, and re-render deterministically. It runs **entirely on your own machine**.
 
 - 🧠 **Multi-agent depth** — read → comprehend → plan → script → visualize → narrate → **verify** → assemble. Not a 90-second summary.
 - ✍️ **Editable, not a black box** — the video is data (Scene-JSON) rendered to HTML; edit any scene, then re-render.
-- 🔒 **Self-hosted & private** — your papers and API keys never leave your infra.
+- 🔒 **Self-hosted & private** — your documents and API keys never leave your infra.
 - 🔌 **Bring your own models** — OpenAI, Anthropic, or local via Ollama. Your keys.
 - ✅ **Accuracy-first** — a verifier agent grounds every claim to a source span.
 - 🎬 **HTML-native rendering** — deterministic, code-based video via HyperFrames.

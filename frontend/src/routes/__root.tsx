@@ -78,18 +78,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Vyakhya — Research papers as editable explainer videos" },
+      { title: "Vyakhya — Documents as editable explainer videos" },
       {
         name: "description",
         content:
-          "Vyakhya is a self-hosted, open-source studio that turns research papers into detailed, editable explainer videos using a crew of AI agents.",
+          "Vyakhya is a self-hosted, open-source studio that turns any document into a detailed, editable explainer video using a crew of AI agents.",
       },
       { name: "author", content: "Vyakhya" },
-      { property: "og:title", content: "Vyakhya — Research papers as editable explainer videos" },
+      { property: "og:title", content: "Vyakhya — Documents as editable explainer videos" },
       {
         property: "og:description",
         content:
-          "Self-hosted studio that turns papers into editable explainer videos with a crew of AI agents.",
+          "Self-hosted studio that turns documents into editable explainer videos with a crew of AI agents.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

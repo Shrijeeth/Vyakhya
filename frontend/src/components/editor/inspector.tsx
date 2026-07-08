@@ -54,7 +54,7 @@ export function Inspector() {
       const page = citedPage(c.sourceSpan);
       window.open(page ? `${url}#page=${page}` : url, "_blank", "noopener");
     } catch {
-      toast.error("Paper file is not available for this project");
+      toast.error("Source file is not available for this project");
     }
   };
 

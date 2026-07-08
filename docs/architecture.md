@@ -85,7 +85,7 @@ The Python brains run on **Agno** (agno-agi, formerly Phidata; model-agnostic, h
 | **Scene-JSON as the contract** | Agent **`output_schema`** = Pydantic models → agents return validated Scene-JSON directly (no parse glue) |
 | BYO-key OSS story | Agno is **model-agnostic** — swap OpenAI/Anthropic/local per user/workspace |
 | Tools (PDF parse, figure extract, citation lookup) | Agno **tools** |
-| Grounding / recall across a long paper | Agno **memory + knowledge** |
+| Grounding / recall across a long document | Agno **memory + knowledge** |
 
 ### Agno Skills — loading the HyperFrames skill
 Agno ships a **Skills** system (based on the Anthropic Agent Skills spec): `LocalSkills` reads a directory of `SKILL.md` + `scripts/` + `references/`, lazy-loaded via injected tools (`get_skill_instructions`, `get_skill_reference`, `get_skill_script`) — no context bloat.
