@@ -49,18 +49,26 @@ PDF ─▶ Studio backend (Python · FastAPI · Agno agents) ─▶ Scene-JSON �
 | [`skills/hyperframes/`](skills/hyperframes/) | HyperFrames Agno `LocalSkills` dir (design-time block authoring) |
 | [`docs/`](docs/) | [Architecture](docs/architecture.md), [**API contract**](docs/api.md) (REST + WS/SSE), [**DB schema**](docs/db-schema.md), Scene-JSON schema, decisions |
 | [`docker-compose.yml`](docker-compose.yml) | `studio + worker + render + postgres + minio` |
-| [`setup.sh`](setup.sh) | Scripted install: generate key, write `.env`, migrate, `docker compose up` |
+| [`setup.sh`](setup.sh) | Interactive install wizard: prereq checks, guided config, generate key, write `.env`, `docker compose up` + health check |
 
 ## Quick start (self-host)
 
 ```bash
 git clone https://github.com/Shrijeeth/Vyakhya.git
 cd Vyakhya
-./setup.sh            # generates encryption key, writes .env, brings up the stack
+./setup.sh            # interactive wizard: checks Docker, guided config, brings up the stack
 # open the printed URL, add your model provider keys in the UI, upload a PDF
 ```
 
-Requires Docker. The setup script provisions `VYAKHYA_ENCRYPTION_KEY` (used to encrypt your provider keys at rest) into `.env` — keep that file private and backed up.
+`./setup.sh` is an **interactive wizard** — it verifies Docker, walks you through config (database · storage · ports) with sensible defaults, generates the encryption key, writes `.env`, starts the stack, and waits for the API to go healthy before printing your URLs. It's idempotent — re-run any time to upgrade.
+
+```bash
+./setup.sh --headless      # no prompts, all defaults (CI / servers)
+./setup.sh --reconfigure   # re-run the wizard (backs up the existing .env)
+./setup.sh --no-up         # configure only; don't start Docker
+```
+
+Requires Docker. The wizard provisions `VYAKHYA_ENCRYPTION_KEY` (used to encrypt your provider keys at rest) into `.env` — keep that file private and backed up **separately from DB dumps**.
 
 ## Local development (frontend)
 
