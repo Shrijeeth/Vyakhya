@@ -75,10 +75,26 @@ _DESIGNER_INSTRUCTIONS = [
     "figure.callout {caption, figureRef}; equation.build {latex}; "
     "dataviz.bar {series: [{label, value}]}; diagram.attention {tokens: string[]}; "
     "comparison.split {left, right}; kinetic.type {text}.",
-    "Every scene needs narration (what the voice-over says) and at least one citation "
-    "grounding it to a source span in the paper (e.g. '§3.2, p. 4').",
-    "Keep it accurate to the paper. Aim for 5–10 scenes, 4000–9000 ms each.",
+    "Every scene needs at least one citation grounding it to a source span in the "
+    "paper (e.g. '§3.2, p. 4').",
 ]
+
+
+def _length_instruction(target_min: int, tts: bool) -> str:
+    target_ms = max(1, target_min) * 60_000
+    per = "4000–9000 ms"
+    n_lo = max(3, target_ms // 9000)
+    n_hi = max(n_lo + 2, target_ms // 4000)
+    narration = (
+        "Every scene needs narration (what the voice-over says)."
+        if tts
+        else "Narration is optional (no voice-over); keep any narration terse as on-screen text."
+    )
+    return (
+        f"The video should total about {target_ms} ms ({target_min} min). Size the scene "
+        f"count and per-scene durations to reach that total — roughly {n_lo}–{n_hi} scenes at "
+        f"{per} each. Do not stop at a handful of scenes if the target is long. {narration}"
+    )
 
 
 async def _resolve_llm_connection(
@@ -140,6 +156,8 @@ class AgnoPipelineExecutor:
             title = project.title
             audience = project.audience
             language = project.language
+            target_min = project.target_length_min or 3
+            tts_enabled = project.tts_enabled
             resolved = await _resolve_llm_connection(session)
             if resolved is None:
                 yield _event(
@@ -157,7 +175,7 @@ class AgnoPipelineExecutor:
             name="Visual Designer",
             model=model,
             skills=skills,
-            instructions=_DESIGNER_INSTRUCTIONS,
+            instructions=[*_DESIGNER_INSTRUCTIONS, _length_instruction(target_min, tts_enabled)],
             output_schema=GenDocument,
             markdown=False,
         )

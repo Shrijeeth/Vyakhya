@@ -23,6 +23,7 @@ def project_to_dto(p: Project) -> ProjectOut:
         audience=p.audience,
         aspect_ratio=p.aspect_ratio,
         language=p.language,
+        tts_enabled=True if p.tts_enabled is None else p.tts_enabled,
     )
 
 

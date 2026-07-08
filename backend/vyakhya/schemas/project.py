@@ -29,6 +29,7 @@ class ProjectOut(CamelModel):
     audience: AudienceLevel
     aspect_ratio: AspectRatio
     language: str
+    tts_enabled: bool = True
 
 
 class SceneCitationOut(CamelModel):

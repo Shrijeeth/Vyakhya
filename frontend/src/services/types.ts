@@ -16,6 +16,7 @@ export interface Project {
   audience: AudienceLevel;
   aspectRatio: AspectRatio;
   language: string;
+  ttsEnabled: boolean;
 }
 
 export type AgentId =

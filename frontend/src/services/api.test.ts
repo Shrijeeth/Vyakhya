@@ -21,6 +21,7 @@ const project: Project = {
   audience: "student",
   aspectRatio: "16:9",
   language: "en",
+  ttsEnabled: true,
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -52,6 +53,7 @@ describe("HTTP endpoints", () => {
       aspectRatio: "16:9",
       language: "en",
       targetLengthMin: 3,
+      ttsEnabled: true,
     });
     const init = fetchMock.mock.calls[0]![1]!;
     expect(init.method).toBe("POST");

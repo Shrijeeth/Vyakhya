@@ -78,4 +78,9 @@ export interface CompileOptions {
   autoDurationMs?: number;
   /** Emit a full HTML document (default) or just the composition fragment. */
   fragment?: boolean;
+  /**
+   * Preview-only: scale the fixed-pixel composition to fit the viewport
+   * (and center it) so it's visible in a small iframe. Not for the render path.
+   */
+  fit?: boolean;
 }

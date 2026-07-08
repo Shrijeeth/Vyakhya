@@ -32,6 +32,7 @@ async def create_project(
     aspect_ratio: AspectRatio,
     language: str,
     target_length_min: int,
+    tts_enabled: bool = True,
     paper_file_url: str | None = None,
 ) -> Project:
     title = re.sub(r"\.pdf$", "", filename, flags=re.IGNORECASE)
@@ -46,15 +47,29 @@ async def create_project(
         aspect_ratio=aspect_ratio,
         language=language,
         target_length_min=target_length_min,
+        tts_enabled=tts_enabled,
     )
     session.add(project)
     await session.flush()
     log.info(
-        "project created id=%s title=%r audience=%s aspect=%s lang=%s",
+        "project created id=%s title=%r audience=%s aspect=%s lang=%s tts=%s",
         project.id,
         title,
         audience.value,
         aspect_ratio.value,
         language,
+        tts_enabled,
     )
     return project
+
+
+async def remove_project(session: AsyncSession, project_id: str) -> bool:
+    """Delete a project (scenes/runs/flags cascade via FK ON DELETE CASCADE)."""
+    project = await session.get(Project, project_id)
+    if project is None:
+        log.warning("project remove: not found id=%s", project_id)
+        return False
+    await session.delete(project)
+    await session.flush()
+    log.info("project removed id=%s", project_id)
+    return True

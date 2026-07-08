@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import DateTime
@@ -42,6 +42,8 @@ class Project(Base):
     )
     language: Mapped[str] = mapped_column(String, nullable=False, default="en")
     target_length_min: Mapped[int | None] = mapped_column(Integer)
+    # Whether the narrator (TTS) stage runs — chosen at project creation.
+    tts_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { createProject } from "@/services/api";
 import type { AspectRatio, AudienceLevel } from "@/services/types";
 
@@ -39,6 +40,7 @@ export function NewProjectDialog({
   const [aspect, setAspect] = useState<AspectRatio>("16:9");
   const [language, setLanguage] = useState("en");
   const [targetLen, setTargetLen] = useState(5);
+  const [ttsEnabled, setTtsEnabled] = useState(true);
   const [dragOver, setDragOver] = useState(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -50,6 +52,7 @@ export function NewProjectDialog({
     setAspect("16:9");
     setLanguage("en");
     setTargetLen(5);
+    setTtsEnabled(true);
   };
 
   const simulateParse = (f: File) => {
@@ -72,6 +75,7 @@ export function NewProjectDialog({
         aspectRatio: aspect,
         language,
         targetLengthMin: targetLen,
+        ttsEnabled,
       });
     },
     onSuccess: (p) => {
@@ -231,6 +235,16 @@ export function NewProjectDialog({
                 onValueChange={(v) => setTargetLen(v[0])}
               />
             </div>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+            <div>
+              <Label className="text-sm">Narration (TTS)</Label>
+              <p className="text-[11px] text-muted-foreground">
+                Generate a spoken voice-over. Turn off for a silent, text-only video.
+              </p>
+            </div>
+            <Switch checked={ttsEnabled} onCheckedChange={setTtsEnabled} />
           </div>
         </div>
 

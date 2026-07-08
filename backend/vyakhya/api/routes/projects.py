@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 
 from vyakhya.api.deps import SessionDep
 from vyakhya.enums import AspectRatio, AudienceLevel
@@ -36,6 +36,7 @@ async def create_project(
     aspect_ratio: Annotated[AspectRatio, Form(alias="aspectRatio")],
     language: Annotated[str, Form()] = "en",
     target_length_min: Annotated[int, Form(alias="targetLengthMin")] = 3,
+    tts_enabled: Annotated[bool, Form(alias="ttsEnabled")] = True,
 ) -> ProjectOut:
     # NOTE: file persistence to MinIO/S3 and pipeline kickoff land at this seam.
     project = await svc.create_project(
@@ -45,5 +46,13 @@ async def create_project(
         aspect_ratio=aspect_ratio,
         language=language,
         target_length_min=target_length_min,
+        tts_enabled=tts_enabled,
     )
     return project_to_dto(project)
+
+
+@router.delete("/{project_id}", status_code=204)
+async def delete_project(project_id: str, session: SessionDep) -> Response:
+    if not await svc.remove_project(session, project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    return Response(status_code=204)

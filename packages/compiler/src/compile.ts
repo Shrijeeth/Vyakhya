@@ -111,16 +111,25 @@ ${scenes}
 
   if (options.fragment) return composition;
 
+  // Preview-only: center + scale the fixed-pixel composition to fit the iframe.
+  const fitCss = options.fit
+    ? `html,body{height:100%}body{display:grid;place-items:center;overflow:hidden}`
+    : "";
+  const fitScript = options.fit
+    ? `<script>(function(){var c=document.querySelector('.hf-composition');if(!c)return;function f(){var s=Math.min(innerWidth/${width},innerHeight/${height});c.style.transform='scale('+s+')';c.style.transformOrigin='center center';}addEventListener('resize',f);f();})();</script>`
+    : "";
+
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${esc(doc.title)}</title>
-<style>${themeCss(width, height)}</style>
+<style>${themeCss(width, height)}${fitCss}</style>
 </head>
 <body>
 ${composition}
+${fitScript}
 </body>
 </html>`;
 }

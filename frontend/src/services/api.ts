@@ -111,6 +111,7 @@ export function createProject(input: {
   aspectRatio: Project["aspectRatio"];
   language: string;
   targetLengthMin: number;
+  ttsEnabled: boolean;
 }): Promise<Project> {
   const form = new FormData();
   form.append("file", input.file);
@@ -118,7 +119,12 @@ export function createProject(input: {
   form.append("aspectRatio", input.aspectRatio);
   form.append("language", input.language);
   form.append("targetLengthMin", String(input.targetLengthMin));
+  form.append("ttsEnabled", String(input.ttsEnabled));
   return http<Project>("/projects", { method: "POST", body: form });
+}
+
+export function deleteProject(id: string): Promise<void> {
+  return http<void>(`/projects/${id}`, { method: "DELETE" });
 }
 
 // ---------------- Pipeline ----------------
@@ -172,7 +178,7 @@ export function compileScenePreview(scene: Scene): Promise<string> {
     aspectRatio: "16:9",
     scenes: [scene as unknown as SceneNode],
   };
-  return Promise.resolve(compile(doc));
+  return Promise.resolve(compile(doc, { fit: true }));
 }
 
 // ---------------- Model config ----------------
