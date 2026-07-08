@@ -62,6 +62,13 @@ class Settings(BaseSettings):
     # needed) — convenient for dev and the current simulated executors.
     inprocess_jobs: bool = Field(default=True, alias="INPROCESS_JOBS")
 
+    # ── Agents (Agno) ──────────────────────────────────────────────────────
+    # When true, run the real Agno agent crew (needs the `agents` extra + a
+    # configured LLM connection). Otherwise the simulated executor is used.
+    use_agno: bool = Field(default=False, alias="USE_AGNO")
+    # Override the HyperFrames skills directory (defaults to repo-root skills/).
+    skills_dir: str = Field(default="", alias="SKILLS_DIR")
+
     @property
     def sqlalchemy_url(self) -> str:
         """Normalize the URL to the asyncpg driver SQLAlchemy expects."""

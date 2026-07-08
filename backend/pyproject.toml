@@ -22,7 +22,14 @@ dependencies = [
 # Heavy agent runtime — kept optional so the core API installs fast.
 # Enable with: uv sync --extra agents
 agents = [
-    "agno>=1.0.0",
+    "agno>=2.7.0",
+    # Provider SDKs Agno lazy-imports per model class. LLM providers:
+    "openai>=1.60.0",       # OpenAI + Groq (OpenAI-compatible) + generic base_url
+    "anthropic>=0.45.0",
+    "google-genai>=1.0.0",  # Gemini
+    "ollama>=0.4.0",
+    # PDF ingestion for the ingestor agent.
+    "pypdf>=5.1.0",
 ]
 
 [dependency-groups]

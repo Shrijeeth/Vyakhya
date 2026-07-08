@@ -11,7 +11,15 @@ ENV UV_PROJECT_ENVIRONMENT=/app/.venv \
 
 # Backend deps + source (context is the repo root; backend lives in backend/).
 COPY backend/ ./
-RUN uv sync --frozen --no-dev
+# Optionally install the Agno agent runtime (real pipeline). Off by default to
+# keep the image lean; enable with: --build-arg INSTALL_AGENTS=1
+ARG INSTALL_AGENTS=0
+RUN if [ "$INSTALL_AGENTS" = "1" ]; then uv sync --frozen --no-dev --extra agents; \
+    else uv sync --frozen --no-dev; fi
+
+# HyperFrames agent skills (loaded as Agno LocalSkills when USE_AGNO=1).
+COPY skills/ /app/skills/
+ENV SKILLS_DIR=/app/skills
 
 EXPOSE 8000
 # Apply migrations, then serve. (Worker command is overridden in compose.)

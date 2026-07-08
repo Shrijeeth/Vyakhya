@@ -10,6 +10,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from vyakhya.agents.pipeline import AGENT_SEQUENCE, SimulatedPipelineExecutor
+from vyakhya.core.config import get_settings
 from vyakhya.core.database import get_sessionmaker
 from vyakhya.core.events import broker
 from vyakhya.core.logging import get_logger
@@ -73,8 +74,24 @@ def launch_run(run_id: str, project_id: str) -> None:
     asyncio.create_task(_execute(run_id, project_id))
 
 
+def _select_executor():  # noqa: ANN202 - PipelineExecutor (Agno or simulated)
+    """Real Agno crew when USE_AGNO is on and the extra is importable; otherwise
+    the simulated executor. Falls back if Agno can't be constructed."""
+    if get_settings().use_agno:
+        try:
+            import agno  # noqa: F401 - probe the optional extra is installed
+
+            from vyakhya.agents.agno_executor import AgnoPipelineExecutor
+
+            log.info("pipeline using Agno executor")
+            return AgnoPipelineExecutor()
+        except Exception:  # noqa: BLE001 - missing extra / import error → simulate
+            log.exception("Agno executor unavailable; falling back to simulated")
+    return SimulatedPipelineExecutor()
+
+
 async def _execute(run_id: str, project_id: str) -> None:
-    executor = SimulatedPipelineExecutor()
+    executor = _select_executor()
     sm = get_sessionmaker()
     try:
         async for event in executor.run(project_id):

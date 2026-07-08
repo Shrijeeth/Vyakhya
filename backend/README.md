@@ -28,7 +28,9 @@ vyakhya/
   schemas/      Pydantic DTOs (camelCase wire ⇄ snake_case) matching docs/api.md
   services/     business logic — projects · editor · pipeline · connections · prompts ·
                 render · crypto (encryptor + per-install salt) · mappers
-  agents/       Scene-JSON schema (future Agno output_schema) + PipelineExecutor seam
+  agents/       Scene-JSON schema · PipelineExecutor seam · SimulatedPipelineExecutor +
+                AgnoPipelineExecutor (real crew) · model_factory (ProviderId → Agno model) ·
+                skills (HyperFrames LocalSkills for the visual-designer agent)
   api/routes/   health · projects · editor · pipeline (SSE) · connections · prompts · render (SSE)
   seed.py       default prompts / render settings / install salt (on startup)
   main.py       app factory · lifespan (seed) · CORS · serve FE build
