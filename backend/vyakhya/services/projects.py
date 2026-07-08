@@ -58,6 +58,7 @@ async def create_project(
     tts_enabled: bool = True,
     paper_file_url: str | None = None,
     paper_text: str | None = None,
+    user_prompt: str | None = None,
 ) -> Project:
     title = re.sub(r"\.pdf$", "", filename, flags=re.IGNORECASE)
     project = Project(
@@ -66,6 +67,7 @@ async def create_project(
         source_paper=filename,
         paper_file_url=paper_file_url,
         paper_text=paper_text,
+        user_prompt=user_prompt or None,
         status=ProjectStatus.GENERATING,
         duration_ms=0,
         audience=audience,

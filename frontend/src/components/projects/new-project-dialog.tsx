@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { createProject } from "@/services/api";
 import type { AspectRatio, AudienceLevel } from "@/services/types";
@@ -41,6 +42,7 @@ export function NewProjectDialog({
   const [language, setLanguage] = useState("en");
   const [targetLen, setTargetLen] = useState(5);
   const [ttsEnabled, setTtsEnabled] = useState(true);
+  const [userPrompt, setUserPrompt] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -53,6 +55,7 @@ export function NewProjectDialog({
     setLanguage("en");
     setTargetLen(5);
     setTtsEnabled(true);
+    setUserPrompt("");
   };
 
   const simulateParse = (f: File) => {
@@ -76,6 +79,7 @@ export function NewProjectDialog({
         language,
         targetLengthMin: targetLen,
         ttsEnabled,
+        userPrompt,
       });
     },
     onSuccess: (p) => {
@@ -235,6 +239,18 @@ export function NewProjectDialog({
                 onValueChange={(v) => setTargetLen(v[0])}
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>
+              Creative brief <span className="font-normal text-muted-foreground">(optional)</span>
+            </Label>
+            <Textarea
+              value={userPrompt}
+              onChange={(e) => setUserPrompt(e.target.value)}
+              placeholder="Tone, focus, style… e.g. “Focus on the attention mechanism, playful tone, dark neon aesthetic, end with practical applications.”"
+              className="min-h-[70px] text-sm"
+            />
           </div>
 
           <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">

@@ -112,6 +112,7 @@ export function createProject(input: {
   language: string;
   targetLengthMin: number;
   ttsEnabled: boolean;
+  userPrompt?: string;
 }): Promise<Project> {
   const form = new FormData();
   form.append("file", input.file);
@@ -120,6 +121,7 @@ export function createProject(input: {
   form.append("language", input.language);
   form.append("targetLengthMin", String(input.targetLengthMin));
   form.append("ttsEnabled", String(input.ttsEnabled));
+  if (input.userPrompt?.trim()) form.append("userPrompt", input.userPrompt.trim());
   return http<Project>("/projects", { method: "POST", body: form });
 }
 
@@ -361,4 +363,23 @@ export const visualTypeSchemas: Record<
     description: "Animated single-word emphasis.",
     fields: [{ key: "text", label: "Text", kind: "text" }],
   },
+  "orbit.3d": {
+    label: "3D concept orbit",
+    description: "Key concepts orbiting on a rotating 3D ring.",
+    fields: [{ key: "tokens", label: "Concepts (one per line)", kind: "list" }],
+  },
+  "custom.html": {
+    label: "Custom scene",
+    description:
+      "Agent-authored HTML/CSS stage. Animations must be finite and offset by calc(var(--t0) + …) to stay seekable.",
+    fields: [
+      { key: "html", label: "HTML", kind: "textarea" },
+      { key: "css", label: "CSS", kind: "textarea" },
+    ],
+  },
 };
+
+// Presigned URL of the project's original PDF (for 'View source' links).
+export function getPaperUrl(projectId: string): Promise<{ url: string }> {
+  return http<{ url: string }>(`/projects/${projectId}/paper`);
+}

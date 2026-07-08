@@ -62,7 +62,9 @@ export type VisualType =
   | "dataviz.bar"
   | "diagram.attention"
   | "comparison.split"
-  | "kinetic.type";
+  | "kinetic.type"
+  | "orbit.3d"
+  | "custom.html";
 
 export interface SceneCitation {
   id: string;

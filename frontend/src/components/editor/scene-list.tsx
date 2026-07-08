@@ -11,6 +11,8 @@ import {
   Network,
   Columns2,
   Zap,
+  Rotate3d,
+  Code2,
 } from "lucide-react";
 import type { Scene, VisualType } from "@/services/types";
 import { useEditorStore } from "@/store/editor-store";
@@ -26,6 +28,8 @@ const VISUAL_ICON: Record<VisualType, React.ComponentType<{ className?: string }
   "diagram.attention": Network,
   "comparison.split": Columns2,
   "kinetic.type": Zap,
+  "orbit.3d": Rotate3d,
+  "custom.html": Code2,
 };
 
 function fmtDuration(d: Scene["durationMs"]) {

@@ -65,6 +65,10 @@ class VisualType(StrEnum):
     DIAGRAM_ATTENTION = "diagram.attention"
     COMPARISON_SPLIT = "comparison.split"
     KINETIC_TYPE = "kinetic.type"
+    ORBIT_3D = "orbit.3d"
+    # Agent-authored scene: the designer writes the stage HTML/CSS itself
+    # (HyperFrames-safe subset) instead of picking a canned layout.
+    CUSTOM_HTML = "custom.html"
 
 
 class CaptionStyle(StrEnum):

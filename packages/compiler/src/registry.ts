@@ -6,11 +6,13 @@
 import type {
   BulletRevealParams,
   ComparisonSplitParams,
+  CustomHtmlParams,
   DatavizBarParams,
   DiagramAttentionParams,
   EquationBuildParams,
   FigureCalloutParams,
   KineticTypeParams,
+  Orbit3dParams,
   TitleCardParams,
   VisualType,
 } from "./types.js";
@@ -52,8 +54,14 @@ function bulletReveal(p: Record<string, unknown>): string {
 function figureCallout(p: Record<string, unknown>): string {
   const { caption, figureRef } = p as FigureCalloutParams;
   const cap = str(caption) ?? str(p.text) ?? str(p.title);
+  const url = str(p.figureUrl);
+  // Real cropped figure from the paper when the pipeline resolved one;
+  // dashed placeholder box otherwise.
+  const visual = url
+    ? `<img class="hf-figimg" src="${esc(url)}" alt="${esc(cap ?? "Figure")}" />`
+    : `<div class="hf-figbox">${esc(str(figureRef) ?? "Figure")}</div>`;
   return `<figure class="hf-figure">
-    <div class="hf-figbox">${esc(str(figureRef) ?? "Figure")}</div>
+    ${visual}
     ${cap ? `<figcaption class="hf-figcap">${esc(cap)}</figcaption>` : ""}
   </figure>`;
 }
@@ -112,6 +120,36 @@ function kineticType(p: Record<string, unknown>): string {
   return `<div class="hf-kinetic"><span class="hf-kinetic-word">${esc(text)}</span></div>`;
 }
 
+function orbit3d(p: Record<string, unknown>): string {
+  const tokens =
+    strList((p as Orbit3dParams).tokens) ??
+    strList(p.bullets) ??
+    (str(p.title) ?? str(p.text) ?? str(p.caption))?.split(/\s+/).slice(0, 6) ??
+    [];
+  const n = Math.max(tokens.length, 1);
+  const cards = tokens
+    .map(
+      (t, i) =>
+        `<div class="hf-orbit-card" style="transform:rotateY(${Math.round((360 / n) * i)}deg) translateZ(var(--hf-orbit-r))">${esc(t)}</div>`,
+    )
+    .join("");
+  return `<div class="hf-orbit"><div class="hf-orbit-ring">${cards}</div></div>`;
+}
+
+// Agent-authored scene. Sanitized: scripts, event handlers, and external
+// iframes are stripped — motion must be CSS (finite, offset by var(--t0)).
+function customHtml(p: Record<string, unknown>): string {
+  const { html, css } = p as CustomHtmlParams;
+  const clean = (s: string) =>
+    s
+      .replace(/<script\b[\s\S]*?(<\/script>|$)/gi, "")
+      .replace(/<iframe\b[\s\S]*?(<\/iframe>|$)/gi, "")
+      .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+      .replace(/javascript:/gi, "");
+  const style = css ? `<style>${clean(css)}</style>` : "";
+  return `<div class="hf-custom">${style}${clean(html ?? "")}</div>`;
+}
+
 export const registry: Record<VisualType, VisualRenderer> = {
   "title.card": titleCard,
   "bullet.reveal": bulletReveal,
@@ -121,6 +159,8 @@ export const registry: Record<VisualType, VisualRenderer> = {
   "diagram.attention": diagramAttention,
   "comparison.split": comparisonSplit,
   "kinetic.type": kineticType,
+  "orbit.3d": orbit3d,
+  "custom.html": customHtml,
 };
 
 export function hasVisual(type: string): type is VisualType {

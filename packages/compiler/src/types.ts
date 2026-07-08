@@ -12,7 +12,9 @@ export type VisualType =
   | "dataviz.bar"
   | "diagram.attention"
   | "comparison.split"
-  | "kinetic.type";
+  | "kinetic.type"
+  | "orbit.3d"
+  | "custom.html";
 
 export type CaptionStyle = "none" | "minimal" | "bold";
 export type SceneTransition = "cut" | "fade" | "slide" | "wipe";
@@ -71,6 +73,20 @@ export interface ComparisonSplitParams {
 }
 export interface KineticTypeParams {
   text?: string;
+}
+export interface Orbit3dParams {
+  tokens?: string[];
+}
+/**
+ * Agent-authored scene. `html` is the stage markup, `css` its styles. The
+ * authoring contract (enforced by instruction, sanitized at compile): no
+ * scripts, class names prefixed with the scene's slug, and every
+ * `animation-delay` written as `calc(var(--t0, 0s) + <offset>)` so the scene
+ * seeks correctly in both preview and the HyperFrames render.
+ */
+export interface CustomHtmlParams {
+  html?: string;
+  css?: string;
 }
 
 export interface CompileOptions {

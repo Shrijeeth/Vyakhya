@@ -31,6 +31,11 @@ class Project(Base):
     # Text extracted from the uploaded PDF at creation time — what the agent
     # pipeline actually reads (no object storage round-trip needed).
     paper_text: Mapped[str | None] = mapped_column(Text)
+    # Extra user guidance for the agent crew (tone, focus, audience notes).
+    user_prompt: Mapped[str | None] = mapped_column(Text)
+    # Figures cropped from the PDF by the ingestor stage:
+    # [{"id", "page", "width", "height", "url"}]
+    figures: Mapped[list | None] = mapped_column(JSONB)
     thumbnail_url: Mapped[str | None] = mapped_column(Text)
     status: Mapped[ProjectStatus] = mapped_column(
         pg_enum(ProjectStatus, "project_status"),

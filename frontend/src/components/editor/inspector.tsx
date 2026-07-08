@@ -1,6 +1,8 @@
+import { useState } from "react";
+import { toast } from "sonner";
 import { useEditorStore } from "@/store/editor-store";
-import type { Scene, VisualType } from "@/services/types";
-import { visualTypeSchemas, type ParamField } from "@/services/api";
+import type { Scene, SceneCitation, VisualType } from "@/services/types";
+import { getPaperUrl, saveScene, visualTypeSchemas, type ParamField } from "@/services/api";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,13 +15,48 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { BookOpen, ExternalLink } from "lucide-react";
+import { BookOpen, ExternalLink, Loader2, Save } from "lucide-react";
+
+// "§3.2, p. 4" / "page 11" → 4 / 11, for a PDF #page= anchor.
+function citedPage(span: string): number | null {
+  const m = /p(?:age|\.)?\s*(\d+)/i.exec(span);
+  return m ? Number(m[1]) : null;
+}
 
 export function Inspector() {
+  const projectId = useEditorStore((s) => s.project?.id ?? null);
   const scene = useEditorStore(
     (s) => s.project?.scenes.find((sc) => sc.id === s.selectedSceneId) ?? null,
   );
+  const isDirty = useEditorStore((s) => (scene ? s.dirtySceneIds.has(scene.id) : false));
   const update = useEditorStore((s) => s.updateScene);
+  const markClean = useEditorStore((s) => s.markClean);
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!scene || !projectId) return;
+    setSaving(true);
+    try {
+      await saveScene(projectId, scene);
+      markClean(scene.id);
+      toast.success("Scene saved");
+    } catch (e) {
+      toast.error(`Save failed: ${(e as Error).message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const viewSource = async (c: SceneCitation) => {
+    if (!projectId) return;
+    try {
+      const { url } = await getPaperUrl(projectId);
+      const page = citedPage(c.sourceSpan);
+      window.open(page ? `${url}#page=${page}` : url, "_blank", "noopener");
+    } catch {
+      toast.error("Paper file is not available for this project");
+    }
+  };
 
   if (!scene) {
     return (
@@ -35,11 +72,21 @@ export function Inspector() {
   return (
     <ScrollArea className="h-full">
       <div className="space-y-6 p-5">
-        <div>
-          <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Scene {scene.index}
+        <div className="flex items-end justify-between">
+          <div>
+            <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Scene {scene.index}
+            </div>
+            <div className="mt-0.5 text-sm font-semibold">Inspector</div>
           </div>
-          <div className="mt-0.5 text-sm font-semibold">Inspector</div>
+          <Button size="sm" onClick={save} disabled={!isDirty || saving}>
+            {saving ? (
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Save className="mr-1.5 h-3.5 w-3.5" />
+            )}
+            {isDirty ? "Save" : "Saved"}
+          </Button>
         </div>
 
         <section className="space-y-2">
@@ -173,7 +220,12 @@ export function Inspector() {
                     <span className="font-medium">{c.label}</span>{" "}
                     <span className="text-muted-foreground">{c.sourceSpan}</span>
                   </span>
-                  <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-[11px]"
+                    onClick={() => viewSource(c)}
+                  >
                     View source <ExternalLink className="ml-1 h-3 w-3" />
                   </Button>
                 </li>

@@ -33,6 +33,11 @@ agents = [
     "ollama>=0.4.0",
     # PDF ingestion for the ingestor agent.
     "pypdf>=5.1.0",
+    # Figure extraction (page-image crops) for the ingestor stage.
+    "pymupdf>=1.25.0",
+    # Web research tools for the comprehension agent (Agno lazy-imports these).
+    "ddgs>=9.0.0",
+    "wikipedia>=1.4.0",
 ]
 
 [dependency-groups]

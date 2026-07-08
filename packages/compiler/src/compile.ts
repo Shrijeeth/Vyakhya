@@ -51,6 +51,9 @@ function renderScene(
     ? registry[type](scene.params ?? {})
     : `<div class="hf-unknown">Unsupported visual: ${esc(type)}</div>`;
   const transition = scene.transition ?? "fade";
+  // Agent-authored scenes design the FULL frame — bypass the centered stage
+  // box so their height:100% backgrounds actually fill the canvas.
+  const stageClass = type === "custom.html" ? "hf-stage hf-stage-full" : "hf-stage";
   // `--t0` shifts every entrance animation to the clip's start so the same
   // markup is correct in the seek-driven preview AND the HyperFrames render.
   return `<section class="clip hf-scene hf-transition-${transition}"
@@ -61,7 +64,7 @@ function renderScene(
     data-duration="${sec(durationMs)}"
     data-track-index="0"
     data-visual="${esc(type)}">
-    <div class="hf-stage">${inner}</div>
+    <div class="${stageClass}">${inner}</div>
     ${caption(scene)}
   </section>`;
 }
@@ -95,6 +98,17 @@ function themeCss(width: number, height: number): string {
   .hf-compare-side{padding:1em;border-radius:12px;background:#fff}
   .hf-compare-divider{width:2px;height:60%;background:var(--hf-accent);opacity:.4}
   .hf-kinetic-word{display:inline-block;font-size:${Math.round(width / 14)}px;font-weight:700;color:var(--hf-accent);letter-spacing:-0.03em}
+  .hf-figimg{max-width:100%;max-height:${Math.round(height * 0.62)}px;border-radius:12px;
+    box-shadow:0 24px 60px -24px rgba(28,30,46,.35);background:#fff;padding:8px}
+  .hf-orbit{perspective:${Math.round(width * 0.7)}px;--hf-orbit-r:${Math.round(width / 5.5)}px}
+  .hf-orbit-ring{position:relative;width:1px;height:1px;margin:0 auto;transform-style:preserve-3d;
+    animation:hf-orbit-spin 24s linear both;animation-iteration-count:4;animation-delay:var(--t0,0s)}
+  .hf-orbit-card{position:absolute;left:50%;top:50%;width:${Math.round(width / 6)}px;margin-left:-${Math.round(width / 12)}px;
+    margin-top:-${Math.round(width / 36)}px;padding:.5em .8em;border-radius:12px;background:#fff;
+    box-shadow:0 10px 30px -12px rgba(28,30,46,.3);text-align:center;
+    font-size:${Math.round(width / 60)}px;font-weight:600;color:var(--hf-fg);backface-visibility:hidden}
+  .hf-custom{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  .hf-stage-full{position:absolute;inset:0;max-width:none;width:100%;height:100%;text-align:initial}
   .hf-caption{position:absolute;left:0;right:0;bottom:6%;text-align:center;font-size:${Math.round(width / 56)}px;padding:0 8%}
   .hf-caption-minimal{color:var(--hf-fg)}
   .hf-caption-bold{color:#fff;font-weight:700;text-shadow:0 2px 12px rgba(0,0,0,.6)}
@@ -105,22 +119,29 @@ function themeCss(width: number, height: number): string {
   @keyframes hf-in{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
   @keyframes hf-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
   @keyframes hf-pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+  @keyframes hf-slide-in{from{opacity:0;transform:translateX(90px)}to{opacity:1;transform:none}}
+  @keyframes hf-wipe-in{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
+  @keyframes hf-orbit-spin{from{transform:rotateY(0)}to{transform:rotateY(360deg)}}
   .hf-stage{animation:hf-rise .6s both ease-out;animation-delay:var(--t0,0s)}
+  /* The scene's transition shapes its stage entrance — cuts snap, slides
+     sweep, wipes reveal — so pacing varies scene to scene. */
+  .hf-transition-cut .hf-stage{animation-duration:.01s}
+  .hf-transition-slide .hf-stage{animation-name:hf-slide-in;animation-duration:.7s}
+  .hf-transition-wipe .hf-stage{animation-name:hf-wipe-in;animation-duration:.8s}
   .hf-bullet{animation:hf-in .5s both ease-out;animation-delay:calc(var(--t0,0s) + .15s + var(--i,0)*.12s)}
   .hf-bar-fill{transform-origin:left center;animation:hf-grow .7s both ease-out;animation-delay:calc(var(--t0,0s) + .1s + var(--i,0)*.15s)}
   .hf-token{animation:hf-pop .4s both ease-out;animation-delay:calc(var(--t0,0s) + var(--i,0)*.06s)}
   .hf-kinetic-word{animation:hf-pop .5s both ease-out;animation-delay:var(--t0,0s)}`;
 }
 
-// Injected into preview docs only: pause the entrance animations (the runtime
-// re-bases each element's animation-delay so the frame at the seeked time is
-// exact) and show the active scene on each hf-seek message (milliseconds).
+// Injected into preview docs only. Every animation in the composition (built-in
+// AND agent-authored) declares its delay as calc(var(--t0) + offset), so
+// seeking is one variable write: pause everything, set the active scene's
+// --t0 to -localTime, and the paused animations resolve to that exact frame.
 function previewRuntime(): string {
-  return `<style>.hf-stage,.hf-bullet,.hf-bar-fill,.hf-token,.hf-kinetic-word{animation-play-state:paused}</style>
+  return `<style>*{animation-play-state:paused !important}</style>
 <script>(function(){var scenes=[].slice.call(document.querySelectorAll('.hf-scene'));
-function stag(l,base,step,L){for(var i=0;i<l.length;i++){l[i].style.animationDelay=(base+i*step-L)+'ms';}}
-function one(el,L){if(el)el.style.animationDelay=(-L)+'ms';}
-function seek(t){var shown=false;for(var i=0;i<scenes.length;i++){var sc=scenes[i],s=1000*(parseFloat(sc.getAttribute('data-start'))||0),d=1000*(parseFloat(sc.getAttribute('data-duration'))||0),a=(t>=s&&t<s+d);sc.style.display=a?'flex':'none';if(a){shown=true;var L=t-s;one(sc.querySelector('.hf-stage'),L);one(sc.querySelector('.hf-kinetic-word'),L);stag(sc.querySelectorAll('.hf-bullet'),150,120,L);stag(sc.querySelectorAll('.hf-token'),0,60,L);stag(sc.querySelectorAll('.hf-bar-fill'),100,150,L);}}
+function seek(t){var shown=false;for(var i=0;i<scenes.length;i++){var sc=scenes[i],s=1000*(parseFloat(sc.getAttribute('data-start'))||0),d=1000*(parseFloat(sc.getAttribute('data-duration'))||0),a=(t>=s&&t<s+d);sc.style.display=a?'flex':'none';if(a){shown=true;sc.style.setProperty('--t0',(s-t)+'ms');}}
 if(!shown&&scenes.length){scenes[scenes.length-1].style.display='flex';}}
 addEventListener('message',function(e){var m=e.data;if(m&&m.type==='hf-seek')seek(m.t|0);});seek(0);})();</script>`;
 }

@@ -41,6 +41,7 @@ async def create_project(
     language: Annotated[str, Form()] = "en",
     target_length_min: Annotated[int, Form(alias="targetLengthMin")] = 3,
     tts_enabled: Annotated[bool, Form(alias="ttsEnabled")] = True,
+    user_prompt: Annotated[str, Form(alias="userPrompt")] = "",
 ) -> ProjectOut:
     # Extract the paper's text now so the agent pipeline designs from the
     # actual content; the original file goes to MinIO after the row exists.
@@ -55,12 +56,23 @@ async def create_project(
         language=language,
         target_length_min=target_length_min,
         tts_enabled=tts_enabled,
+        user_prompt=user_prompt,
     )
     try:
         project.paper_file_url = await storage.put_paper(project.id, data)
     except Exception as exc:  # noqa: BLE001 - storage down shouldn't block creation
         log.warning("paper upload to object storage failed: %s", exc)
     return project_to_dto(project)
+
+
+@router.get("/{project_id}/paper")
+async def paper_url(project_id: str, session: SessionDep) -> dict:
+    """Presigned URL for the original PDF — the editor's 'View source' opens
+    it at the cited page (…#page=N)."""
+    project = await svc.get_project(session, project_id)
+    if project is None or not project.paper_file_url:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    return {"url": await storage.presign_paper_url(project.paper_file_url)}
 
 
 @router.delete("/{project_id}", status_code=204)

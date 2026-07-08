@@ -71,12 +71,17 @@ class GenSceneParams(BaseModel):
     bullets: list[str] | None = None  # bullet.reveal
     caption: str | None = None  # figure.callout
     figure_ref: str | None = Field(default=None, alias="figureRef")  # figure.callout
+    figure_id: str | None = Field(default=None, alias="figureId")  # figure.callout (fig1, fig2…)
+    figure_url: str | None = Field(default=None, alias="figureUrl")  # resolved by the pipeline
     latex: str | None = None  # equation.build
     series: list[GenSeriesPoint] | None = None  # dataviz.bar
-    tokens: list[str] | None = None  # diagram.attention
+    tokens: list[str] | None = None  # diagram.attention + orbit.3d
     left: str | None = None  # comparison.split
     right: str | None = None  # comparison.split
     text: str | None = None  # kinetic.type
+    # custom.html — agent-authored stage markup + styles (no scripts).
+    html: str | None = None
+    css: str | None = None
 
 
 class GenScene(BaseModel):
@@ -122,22 +127,80 @@ class VerifierReport(BaseModel):
 
 _DESIGNER_INSTRUCTIONS = [
     "You are the visual designer for Vyakhya, which turns research papers into "
-    "editable explainer videos rendered by HyperFrames.",
-    "Read the HyperFrames skills (call get_skill_instructions for 'hyperframes-core' "
-    "and 'faceless-explainer') before designing, so your scenes follow the authoring "
-    "contract.",
-    "Produce an ordered list of scenes that explains the paper section by section. "
-    "Use ONLY these visual types and their params: "
-    "title.card {title, subtitle}; bullet.reveal {bullets: string[]}; "
-    "figure.callout {caption, figureRef}; equation.build {latex}; "
-    "dataviz.bar {series: [{label, value}]}; diagram.attention {tokens: string[]}; "
-    "comparison.split {left, right}; kinetic.type {text}.",
-    "params keys MUST match the scene's visualType exactly (e.g. kinetic.type uses "
-    "`text`, never `tokens`; diagram.attention uses `tokens`, never `caption`) — a "
-    "scene with params under the wrong key renders as a BLANK frame.",
+    "editable explainer videos rendered by HyperFrames. You are a motion designer, "
+    "not a slide-deck generator: every project should have its own art direction.",
+    "FIRST read the HyperFrames skills — call get_skill_instructions for "
+    "'hyperframes-core' and 'faceless-explainer', and consult "
+    "'hyperframes-animation' ideas (staggered reveals, kinetic typography, "
+    "multi-phase scenes, 3D transforms) — then design scenes that USE those "
+    "techniques rather than defaulting to plain lists.",
+    "Two ways to author a scene:",
+    "1) BUILT-IN visuals (fast, guaranteed layouts): "
+    "title.card {title, subtitle}; bullet.reveal {bullets}; "
+    "figure.callout {caption, figureRef, figureId}; equation.build {latex}; "
+    "dataviz.bar {series: [{label, value}]}; diagram.attention {tokens}; "
+    "comparison.split {left, right}; kinetic.type {text}; orbit.3d {tokens} "
+    "(a rotating 3D ring of concepts). params keys MUST match the visualType "
+    "exactly or the frame renders BLANK.",
+    "2) CUSTOM scenes (your creativity): visualType custom.html with params "
+    "{html, css}. You write the stage markup and styles yourself — bold "
+    "typography, layered layouts, CSS 3D (perspective/rotate3d), gradients, "
+    "SVG diagrams, animated counters via keyframes. Use custom.html for the "
+    "hero moments (opener, the paper's core idea, the closer) and whenever a "
+    "built-in would flatten the idea. Rules for custom scenes: "
+    "(a) NO <script>, no external assets except the provided figure URLs; "
+    "(b) the scene MUST be fully self-styled: every class you reference must be "
+    "defined in the css param (or use inline style= attributes) — unstyled "
+    "classes render as tiny plain text; prefix classes with a unique slug per "
+    "scene (e.g. .att1-…); "
+    "(c) all animations must be FINITE with fill-mode both, and every "
+    "animation-delay MUST be written as calc(var(--t0, 0s) + <offset>) so the "
+    "scene is seekable; (d) design for the full frame (the stage is centered "
+    "in a 1920x1080 canvas by default).",
+    "When a list of extracted figures is provided, USE THEM: figure.callout with "
+    "figureId set to one of the given ids (never invent ids), or an <img> with the "
+    "figure's URL inside a custom.html scene.",
+    "Direct the motion: vary transitions (cut for rhythm, slide/wipe for section "
+    "changes, fade sparingly), alternate dense visuals with breathing room, and "
+    "sequence related scenes so ideas build (setup → evidence → payoff). Avoid "
+    "using the same visual type twice in a row.",
     "Every scene needs at least one citation grounding it to a source span in the "
     "paper (e.g. '§3.2, p. 4').",
 ]
+
+_RESEARCHER_INSTRUCTIONS = [
+    "You are the comprehension researcher for Vyakhya. Given a paper's title and "
+    "abstract, use your web tools (search, Wikipedia) to gather context that helps "
+    "explain the paper to the target audience: prior work it builds on, real-world "
+    "impact, common misconceptions, and simple analogies.",
+    "Be fast: at most 3-4 tool calls. Return concise, factual notes — no filler.",
+]
+
+
+class ResearchNotes(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    summary: str = ""
+    key_points: list[str] = Field(default_factory=list, alias="keyPoints")
+    analogies: list[str] = Field(default_factory=list)
+
+
+def _research_tools() -> list[Any]:
+    """Web tools for the researcher, skipping any whose deps are missing."""
+    tools: list[Any] = []
+    try:
+        from agno.tools.duckduckgo import DuckDuckGoTools
+
+        tools.append(DuckDuckGoTools())
+    except Exception as exc:  # noqa: BLE001 - optional dep
+        log.warning("DuckDuckGo tools unavailable: %s", exc)
+    try:
+        from agno.tools.wikipedia import WikipediaTools
+
+        tools.append(WikipediaTools())
+    except Exception as exc:  # noqa: BLE001 - optional dep
+        log.warning("Wikipedia tools unavailable: %s", exc)
+    return tools
 
 
 _VERIFIER_INSTRUCTIONS = [
@@ -310,11 +373,42 @@ def _normalize_scene_params(scene: GenScene) -> None:
     elif vt is VisualType.COMPARISON_SPLIT and not (p.left and p.right):
         if p.bullets and len(p.bullets) >= 2:
             p.left, p.right = p.left or p.bullets[0], p.right or p.bullets[1]
+    elif vt is VisualType.ORBIT_3D and not p.tokens:
+        source = p.title or p.text or p.caption or scene.narration
+        p.tokens = p.bullets or (source.split()[:6] if source else None)
+    elif vt is VisualType.CUSTOM_HTML:
+        html = p.html or ""
+        # A custom scene must be self-styled: markup with bare classes and no
+        # css/inline styles renders as tiny unstyled text. Degrade those (and
+        # empty ones) to a kinetic text card instead of shipping a broken frame.
+        unstyled = "class=" in html and not p.css and "style=" not in html
+        if not html.strip() or unstyled:
+            scene.visual_type = VisualType.KINETIC_TYPE
+            import re as _re
+
+            plain = _re.sub(r"<[^>]+>", " ", html).strip()
+            p.text = p.text or plain[:80] or p.title or p.caption or scene.narration[:80]
 
 
-def _dump_scenes(doc: GenDocument) -> list[dict]:
+def _dump_scenes(doc: GenDocument, figure_map: dict[str, str] | None = None) -> list[dict]:
+    fmap = figure_map or {}
     for s in doc.scenes:
         _normalize_scene_params(s)
+        # Resolve figureId → the cropped figure's URL (never trust invented ids).
+        p = s.params
+        if p.figure_id:
+            url = fmap.get(p.figure_id)
+            p.figure_url = url
+            if url is None:
+                p.figure_id = None
+    # The model often writes figure.callout without figureId — assign the
+    # extracted figures in document order so real crops appear regardless.
+    used = {s.params.figure_id for s in doc.scenes if s.params.figure_id}
+    unused = [(fid, url) for fid, url in fmap.items() if fid not in used]
+    for s in doc.scenes:
+        if s.visual_type is VisualType.FIGURE_CALLOUT and not s.params.figure_url and unused:
+            fid, url = unused.pop(0)
+            s.params.figure_id, s.params.figure_url = fid, url
     return [s.model_dump(by_alias=True, exclude_none=True) for s in doc.scenes]
 
 
@@ -342,6 +436,9 @@ class AgnoPipelineExecutor:
             language = project.language
             target_min = project.target_length_min or 3
             tts_enabled = project.tts_enabled
+            user_prompt = (project.user_prompt or "").strip()
+            figures: list[dict] = list(project.figures or [])
+            paper_file_url = project.paper_file_url
             resolved = await _resolve_llm_connection(session)
             if resolved is None:
                 yield _event(
@@ -384,20 +481,112 @@ class AgnoPipelineExecutor:
             output_schema=VerifierReport,
             markdown=False,
         )
+        researcher = Agent(
+            name="Researcher",
+            model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url),
+            tools=_research_tools(),
+            instructions=_RESEARCHER_INSTRUCTIONS,
+            output_schema=ResearchNotes,
+            parser_model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url),
+            markdown=False,
+        )
 
         total = len(AGENT_SEQUENCE)
         scenes_payload: list[dict] = []
         doc: GenDocument | None = None
+        research: ResearchNotes | None = None
+        figure_map: dict[str, str] = {f["id"]: f["url"] for f in figures if f.get("url")}
 
         for idx, (agent_id, label) in enumerate(AGENT_SEQUENCE):
             yield _event(PipelineEventType.STATUS, AgentStatus.RUNNING.value, agent_id)
             yield _event(PipelineEventType.LOG, f"[{label}] working…", agent_id)
 
+            if agent_id is AgentId.INGESTOR and not figures and paper_file_url:
+                # Crop the paper's figures so the designer can put the real
+                # plots/diagrams on screen (figure.callout with figureId).
+                try:
+                    from vyakhya.services import storage
+                    from vyakhya.services.figures import extract_figures
+
+                    pdf_bytes = await storage.get_object(paper_file_url)
+                    figures = await extract_figures(project_id, pdf_bytes)
+                    figure_map = {f["id"]: f["url"] for f in figures}
+                    async with sm() as session:
+                        proj = await session.get(Project, project_id)
+                        if proj is not None:
+                            proj.figures = figures
+                            await session.commit()
+                    yield _event(
+                        PipelineEventType.LOG,
+                        f"[{label}] extracted {len(figures)} figure(s) from the PDF",
+                        agent_id,
+                    )
+                except Exception as exc:  # noqa: BLE001 - figures are an enhancement
+                    log.warning("figure extraction failed: %s", exc)
+                    yield _event(
+                        PipelineEventType.LOG,
+                        f"[{label}] figure extraction failed: {exc}",
+                        agent_id,
+                    )
+
+            if agent_id is AgentId.COMPREHENSION and researcher.tools:
+                # Web research (search + Wikipedia) for grounding context the
+                # paper itself doesn't carry: impact, prior work, analogies.
+                try:
+                    rres = await researcher.arun(
+                        input=(
+                            f"Research context for explaining this paper.\n"
+                            f"Title: {title}\n\nOpening of the paper:\n{paper_text[:3000]}"
+                        ),
+                        stream=False,
+                    )
+                    content = rres.content if rres else None
+                    if isinstance(content, ResearchNotes):
+                        research = content
+                    else:
+                        data = _extract_data(content)
+                        if isinstance(data, dict):
+                            research = ResearchNotes.model_validate(data)
+                    if research is not None:
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] gathered {len(research.key_points)} research "
+                            f"note(s) from the web",
+                            agent_id,
+                        )
+                except Exception as exc:  # noqa: BLE001 - research is best-effort
+                    log.warning("web research failed: %s", exc)
+                    yield _event(
+                        PipelineEventType.LOG, f"[{label}] web research skipped: {exc}", agent_id
+                    )
+
             if agent_id is AgentId.VISUAL_DESIGNER:
+                figures_block = ""
+                if figures:
+                    lines = "\n".join(
+                        f"- {f['id']}: page {f['page']}, {f['width']}x{f['height']}px"
+                        for f in figures
+                    )
+                    figures_block = (
+                        f"\n\nFigures cropped from the paper (use figure.callout with "
+                        f"figureId):\n{lines}"
+                    )
+                research_block = ""
+                if research is not None and (research.summary or research.key_points):
+                    notes = "\n".join(f"- {p}" for p in research.key_points)
+                    analogies = "\n".join(f"- {a}" for a in research.analogies)
+                    research_block = (
+                        f"\n\nWeb research context:\n{research.summary}\n{notes}"
+                        + (f"\nAnalogies you may use:\n{analogies}" if analogies else "")
+                    )
+                user_block = (
+                    f"\n\nUSER GUIDANCE (must be honored):\n{user_prompt}" if user_prompt else ""
+                )
                 prompt = (
                     f"Design the explainer scenes for this paper.\n"
                     f"Title: {title}\nAudience: {AudienceLevel(audience).value}\n"
-                    f"Language: {language}\n\nPaper text:\n{paper_text}"
+                    f"Language: {language}{user_block}{figures_block}{research_block}\n\n"
+                    f"Paper text:\n{paper_text}"
                 )
                 last_error = "model returned no parseable scenes"
                 for attempt in range(2):
@@ -425,7 +614,7 @@ class AgnoPipelineExecutor:
                     yield _event(PipelineEventType.LOG, f"[{label}] {last_error}", agent_id)
                     yield _event(PipelineEventType.STATUS, AgentStatus.ERROR.value, agent_id)
                     raise RuntimeError(f"visual designer produced no scenes ({last_error})")
-                scenes_payload = _dump_scenes(doc)
+                scenes_payload = _dump_scenes(doc, figure_map)
                 yield _event(
                     PipelineEventType.LOG,
                     f"[{label}] produced {len(scenes_payload)} scenes",
@@ -511,7 +700,7 @@ class AgnoPipelineExecutor:
                         revised = None
                     if revised is not None and revised.scenes:
                         doc = revised
-                        scenes_payload = _dump_scenes(doc)
+                        scenes_payload = _dump_scenes(doc, figure_map)
                         yield _event(
                             PipelineEventType.LOG,
                             f"[{label}] designer revised → {len(doc.scenes)} scenes",
@@ -573,7 +762,7 @@ class AgnoPipelineExecutor:
                         )
                         break
                     doc = fixed
-                    scenes_payload = _dump_scenes(doc)
+                    scenes_payload = _dump_scenes(doc, figure_map)
                     yield _event(
                         PipelineEventType.LOG,
                         f"[{label}] designer adjusted → {len(doc.scenes)} scenes, "

@@ -45,6 +45,8 @@ class Settings(BaseSettings):
 
     # ── Object storage (MinIO / S3) ────────────────────────────────────────
     s3_endpoint: str = Field(default="http://localhost:9000", alias="S3_ENDPOINT")
+    # Endpoint reachable from the user's BROWSER (figure URLs, presigned links).
+    s3_public_endpoint: str = Field(default="http://localhost:9000", alias="S3_PUBLIC_ENDPOINT")
     s3_access_key: str = Field(default="vyakhya", alias="S3_ACCESS_KEY")
     s3_secret_key: str = Field(default="change-me", alias="S3_SECRET_KEY")
     s3_bucket: str = Field(default="vyakhya", alias="S3_BUCKET")

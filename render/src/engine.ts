@@ -63,6 +63,12 @@ export class HyperframesRenderEngine implements RenderEngine {
 
     const dir = await mkdtemp(join(tmpdir(), "vyakhya-render-"));
     try {
+      // Figure URLs are minted for the BROWSER (public endpoint). Headless
+      // Chrome runs inside this container where only the internal endpoint
+      // resolves — rewrite before rendering.
+      if (this.config.s3PublicEndpoint !== this.config.s3Endpoint) {
+        html = html.split(this.config.s3PublicEndpoint).join(this.config.s3Endpoint);
+      }
       await writeFile(join(dir, "index.html"), html, "utf8");
       const ext = settings.format === "webm" ? "webm" : "mp4";
       const outPath = join(dir, `out.${ext}`);
