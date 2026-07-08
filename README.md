@@ -65,8 +65,11 @@ Requires Docker. The setup script provisions `VYAKHYA_ENCRYPTION_KEY` (used to e
 ## Tech stack
 
 **Frontend:** React · Vite · TypeScript · Tailwind · shadcn/ui · React Flow · Monaco · BlockNote · Vidstack
+
 **Backend:** Python · FastAPI · Agno · Procrastinate · Postgres
+
 **Render:** Node · HyperFrames (`@hyperframes/producer`) · FFmpeg · headless Chrome
+
 **Shared:** `@vyakhya/compiler` (TS) · Scene-JSON contract · MinIO/S3
 
 ## Status
