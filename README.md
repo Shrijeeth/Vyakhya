@@ -68,7 +68,13 @@ cd Vyakhya
 ./setup.sh --no-up         # configure only; don't start Docker
 ```
 
-Requires Docker. The wizard provisions `VYAKHYA_ENCRYPTION_KEY` (used to encrypt your provider keys at rest) into `.env` — keep that file private and backed up **separately from DB dumps**.
+Requires Docker. The wizard provisions three secrets into `.env` — keep that file private and backed up **separately from DB dumps**:
+
+- `VYAKHYA_ENCRYPTION_KEY` — encrypts your provider keys at rest (AES-256-GCM).
+- `VYAKHYA_API_KEY` — gates the backend `/api` routes (sent as `X-API-Key`); the frontend build embeds it as `VITE_API_KEY`.
+- `RENDER_API_KEY` — shared between the backend and the render service.
+
+Leave all API keys blank to disable auth for local dev (a startup warning logs).
 
 ## Local development (frontend)
 

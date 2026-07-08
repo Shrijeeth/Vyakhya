@@ -1,86 +1,143 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  addConnection,
+  compileScenePreview,
   createProject,
   getAgentSequence,
   getRenderSettings,
   listProjects,
-  subscribePipeline,
+  startRender,
   visualTypeSchemas,
 } from "./api";
-import type { PipelineEvent } from "./types";
+import type { Project, RenderSettings, Scene } from "./types";
+
+const project: Project = {
+  id: "p1",
+  title: "Paper",
+  sourcePaper: "Author, 2024",
+  status: "ready",
+  durationMs: 1000,
+  updatedAt: "2026-07-08T00:00:00Z",
+  audience: "student",
+  aspectRatio: "16:9",
+  language: "en",
+};
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
 
 afterEach(() => {
-  vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
-describe("projects service (mock layer)", () => {
-  it("lists seeded projects", async () => {
+describe("HTTP endpoints", () => {
+  it("listProjects GETs /api/projects", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse([project]));
     const projects = await listProjects();
-    expect(projects.length).toBeGreaterThan(0);
-    expect(projects[0]).toHaveProperty("status");
+    expect(projects).toEqual([project]);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(String(fetchMock.mock.calls[0]![0])).toContain("/api/projects");
   });
 
-  it("creates a project in the generating state", async () => {
-    const file = new File(["%PDF-1.4"], "My Great Paper.pdf", { type: "application/pdf" });
-    const p = await createProject({
+  it("createProject POSTs multipart form data", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(project));
+    const file = new File(["%PDF"], "My Paper.pdf", { type: "application/pdf" });
+    await createProject({
       file,
       audience: "student",
       aspectRatio: "16:9",
       language: "en",
       targetLengthMin: 3,
     });
-    expect(p.title).toBe("My Great Paper");
-    expect(p.sourcePaper).toBe("My Great Paper.pdf");
-    expect(p.status).toBe("generating");
-    expect(p.durationMs).toBe(0);
+    const init = fetchMock.mock.calls[0]![1]!;
+    expect(init.method).toBe("POST");
+    expect(init.body).toBeInstanceOf(FormData);
+    expect((init.body as FormData).get("aspectRatio")).toBe("16:9");
+  });
+
+  it("addConnection sends the raw apiKey as JSON", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse({ ...project, id: "c1" }));
+    await addConnection({ provider: "openai", model: "gpt-4o", apiKey: "sk-secret" });
+    const init = fetchMock.mock.calls[0]![1]!;
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      provider: "openai",
+      apiKey: "sk-secret",
+    });
+  });
+
+  it("throws on non-2xx", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({ detail: "nope" }, 500));
+    await expect(getRenderSettings()).rejects.toThrow();
   });
 });
 
-describe("agent sequence", () => {
-  it("runs ingestor → assembler with a verifier stage", () => {
+describe("static client metadata", () => {
+  it("agent sequence runs ingestor → assembler with a verifier stage", () => {
     const seq = getAgentSequence();
     expect(seq).toHaveLength(8);
     expect(seq[0].id).toBe("ingestor");
     expect(seq.at(-1)?.id).toBe("assembler");
     expect(seq.map((a) => a.id)).toContain("verifier");
   });
-});
 
-describe("render settings", () => {
-  it("returns sane defaults", async () => {
-    const s = await getRenderSettings();
-    expect([24, 30, 60]).toContain(s.fps);
-    expect(s.width).toBeGreaterThan(0);
-  });
-});
-
-describe("visualTypeSchemas", () => {
-  it("has a schema for every visual type used by scenes", () => {
+  it("visualTypeSchemas covers every visual", () => {
     expect(visualTypeSchemas["title.card"].fields.length).toBeGreaterThan(0);
     expect(visualTypeSchemas["dataviz.bar"]).toBeDefined();
   });
 });
 
-describe("subscribePipeline", () => {
-  it("streams events and finishes with a done event", async () => {
-    vi.useFakeTimers();
-    const events: PipelineEvent[] = [];
-    const unsub = subscribePipeline("p1", (e) => events.push(e));
-
-    await vi.advanceTimersByTimeAsync(60_000);
-    unsub();
-
-    expect(events.length).toBeGreaterThan(0);
-    expect(events.some((e) => e.type === "status")).toBe(true);
-    expect(events.at(-1)?.type).toBe("done");
+describe("compileScenePreview (client-side compiler)", () => {
+  it("compiles a scene to HyperFrames HTML with no round-trip", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    const scene: Scene = {
+      id: "s1",
+      index: 1,
+      narration: "hello",
+      visualType: "title.card",
+      params: { title: "Hi" },
+      captionStyle: "minimal",
+      transition: "fade",
+      durationMs: 6000,
+      citations: [],
+    };
+    const html = await compileScenePreview(scene);
+    expect(html).toContain("data-hf-composition");
+    expect(html).toContain("Hi");
+    expect(fetchMock).not.toHaveBeenCalled(); // preview is local
   });
+});
 
-  it("stops emitting after unsubscribe", async () => {
-    vi.useFakeTimers();
-    const events: PipelineEvent[] = [];
-    const unsub = subscribePipeline("p1", (e) => events.push(e));
-    unsub();
-    await vi.advanceTimersByTimeAsync(60_000);
-    expect(events).toHaveLength(0);
+describe("startRender (SSE over fetch)", () => {
+  beforeEach(() => vi.restoreAllMocks());
+
+  it("parses SSE frames into job events", async () => {
+    const frames =
+      'data: {"id":"r1","status":"running","progress":0}\n\n' +
+      'data: {"id":"r1","status":"done","progress":1,"outputUrl":"http://x/o.mp4"}\n\n';
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(frames));
+        controller.close();
+      },
+    });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(body, { status: 200 }));
+
+    const events: unknown[] = [];
+    const settings = { fps: 30 } as RenderSettings;
+    await new Promise<void>((resolve) => {
+      startRender("p1", settings, (job) => {
+        events.push(job);
+        if (job.status === "done") resolve();
+      });
+    });
+    expect(events).toHaveLength(2);
+    expect((events.at(-1) as { outputUrl: string }).outputUrl).toBe("http://x/o.mp4");
   });
 });

@@ -2,7 +2,9 @@
   "name": "vyakhya",
   "private": true,
   "workspaces": [
-    "frontend"
+    "frontend",
+    "packages/*",
+    "render"
   ],
   "scripts": {
     "prepare": "git config core.hooksPath .githooks || true",

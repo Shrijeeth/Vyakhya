@@ -109,7 +109,7 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
       addConnection({
         provider,
         model,
-        apiKeyMasked: apiKey ? `${apiKey.slice(0, 3)}…${apiKey.slice(-4)}` : "—",
+        apiKey,
         baseUrl: baseUrl || undefined,
       }),
     onSuccess: () => {

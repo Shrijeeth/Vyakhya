@@ -30,6 +30,11 @@ jobs:
         run: bun install --frozen-lockfile
         working-directory: .
 
+      # Frontend imports @vyakhya/compiler — build it first.
+      - name: Build compiler
+        run: bun run build
+        working-directory: packages/compiler
+
       - name: Format (prettier)
         run: bun run format:check
 
@@ -43,6 +48,34 @@ jobs:
 
       - name: Test (vitest)
         run: bun run test
+
+  packages:
+    name: Packages (compiler + render)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Compiler — build, typecheck, test
+        run: |
+          bun run build
+          bun run typecheck
+          bun run test
+        working-directory: packages/compiler
+
+      - name: Render — typecheck, build, test
+        run: |
+          bun run typecheck
+          bun run build
+          bun run test
+        working-directory: render
 
   backend:
     name: Backend (uv)

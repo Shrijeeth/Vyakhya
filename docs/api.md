@@ -10,7 +10,18 @@ zero frontend edits**.
 
 - Base URL: `/api` (suggested). All bodies JSON unless noted.
 - IDs are opaque strings. Timestamps are ISO-8601 UTC strings.
-- Two long-running flows (pipeline, render) are **streams** — use WebSocket or SSE.
+- Two long-running flows (pipeline, render) are **streams** — served as **SSE**.
+
+## Authentication
+
+All `/api/*` routes require a shared API key in the `X-API-Key` header when
+`VYAKHYA_API_KEY` is set (provisioned by `./setup.sh`; the frontend build embeds
+it as `VITE_API_KEY`). Missing/invalid → `401`. `/health` and `/docs` are open.
+When the key is unset, auth is disabled (local dev) and a startup warning logs.
+
+The streaming endpoints are **Server-Sent Events** over `fetch` (so the auth
+header can be sent — `EventSource` cannot set headers). Each event is one
+`data: <json>\n\n` frame matching the shapes below.
 
 ---
 

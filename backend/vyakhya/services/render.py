@@ -10,6 +10,7 @@ import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from vyakhya.core.config import get_settings
 from vyakhya.core.database import get_sessionmaker
 from vyakhya.core.events import broker
 from vyakhya.core.logging import get_logger
@@ -85,27 +86,17 @@ def launch_render(job_id: str) -> None:
 
 async def _execute_render(job_id: str) -> None:
     sm = get_sessionmaker()
-    progress = 0.0
     try:
         async with sm() as session:
             job = await session.get(RenderJob, job_id)
+            project_id = job.project_id if job else None
+            settings_dict = dict(job.settings) if job else {}
             await broker.publish(job_id, _job_event(job))
-        while progress < 1.0:
-            await asyncio.sleep(0.5)
-            progress = min(1.0, progress + 0.08)
-            async with sm() as session:
-                job = await session.get(RenderJob, job_id)
-                if job is None:
-                    return
-                if progress >= 1.0:
-                    job.status = RenderStatus.DONE
-                    job.progress = 1.0
-                    job.output_url = _SAMPLE_OUTPUT
-                    job.finished_at = utcnow()
-                else:
-                    job.progress = progress
-                await session.commit()
-                await broker.publish(job_id, _job_event(job))
+
+        if get_settings().use_render_service and project_id:
+            await _render_via_service(job_id, project_id, settings_dict)
+        else:
+            await _render_simulated(job_id)
     except Exception:  # noqa: BLE001
         log.exception("render job %s failed", job_id)
         async with sm() as session:
@@ -117,3 +108,57 @@ async def _execute_render(job_id: str) -> None:
                 await broker.publish(job_id, _job_event(job))
     finally:
         await broker.close(job_id)
+
+
+async def _render_simulated(job_id: str) -> None:
+    """In-process progress ticks (no Chrome/FFmpeg) — dev default."""
+    sm = get_sessionmaker()
+    progress = 0.0
+    while progress < 1.0:
+        await asyncio.sleep(0.5)
+        progress = min(1.0, progress + 0.08)
+        async with sm() as session:
+            job = await session.get(RenderJob, job_id)
+            if job is None:
+                return
+            if progress >= 1.0:
+                job.status = RenderStatus.DONE
+                job.progress = 1.0
+                job.output_url = _SAMPLE_OUTPUT
+                job.finished_at = utcnow()
+            else:
+                job.progress = progress
+            await session.commit()
+            await broker.publish(job_id, _job_event(job))
+
+
+async def _render_via_service(job_id: str, project_id: str, settings_dict: dict) -> None:
+    """Delegate to the Node render service; map its progress onto the job row."""
+    from vyakhya.services.render_client import build_scene_document, stream_render_service
+
+    doc = await build_scene_document(project_id)
+    if not doc or not doc.get("scenes"):
+        # Nothing to render yet — fall back so the UI still completes.
+        await _render_simulated(job_id)
+        return
+
+    sm = get_sessionmaker()
+    async for event in stream_render_service(doc, settings_dict):
+        async with sm() as session:
+            job = await session.get(RenderJob, job_id)
+            if job is None:
+                return
+            status = event.get("status")
+            if status == "error":
+                job.status = RenderStatus.ERROR
+                job.error = event.get("error")
+                job.finished_at = utcnow()
+            elif status == "done":
+                job.status = RenderStatus.DONE
+                job.progress = 1.0
+                job.output_url = event.get("outputUrl")
+                job.finished_at = utcnow()
+            else:
+                job.progress = float(event.get("progress", 0.0))
+            await session.commit()
+            await broker.publish(job_id, _job_event(job))

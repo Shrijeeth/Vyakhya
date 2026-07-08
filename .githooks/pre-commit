@@ -17,10 +17,12 @@ fi
 staged="$(git diff --cached --name-only --diff-filter=ACM)"
 fe_changed=false
 be_changed=false
-grep -q '^frontend/' <<<"$staged" && fe_changed=true
-grep -q '^backend/'  <<<"$staged" && be_changed=true
+pkg_changed=false
+grep -q '^frontend/'         <<<"$staged" && fe_changed=true
+grep -q '^backend/'          <<<"$staged" && be_changed=true
+grep -qE '^packages/|^render/' <<<"$staged" && pkg_changed=true
 
-if [[ "$fe_changed" == false && "$be_changed" == false ]]; then
+if [[ "$fe_changed" == false && "$be_changed" == false && "$pkg_changed" == false ]]; then
   exit 0
 fi
 
@@ -38,6 +40,25 @@ run() {
     fail=1
   fi
 }
+
+# The compiler is a dependency of both the frontend and the render service —
+# build it first whenever any JS side is being checked.
+if [[ "$fe_changed" == true || "$pkg_changed" == true ]] && command -v bun >/dev/null 2>&1; then
+  ( cd packages/compiler && bun run build ) >/dev/null 2>&1 || true
+fi
+
+# ── JS packages (compiler + render) ──────────────────────────────────────────
+if [[ "$pkg_changed" == true ]]; then
+  step "Package checks (bun)"
+  if command -v bun >/dev/null 2>&1; then
+    run "compiler:typecheck" bun --cwd packages/compiler run typecheck
+    run "compiler:test"      bun --cwd packages/compiler run test
+    run "render:typecheck"   bash -c 'cd render && bun run typecheck'
+    run "render:test"        bash -c 'cd render && bun run test'
+  else
+    printf '  %s! bun not found — skipping package checks%s\n' "$YEL" "$R"
+  fi
+fi
 
 # ── Frontend (bun) ───────────────────────────────────────────────────────────
 if [[ "$fe_changed" == true ]]; then

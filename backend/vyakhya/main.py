@@ -32,6 +32,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "VYAKHYA_ENCRYPTION_KEY is unset/insecure — provider keys are not safely "
             "encrypted. Run ./setup.sh to provision one for production."
         )
+    if not settings.auth_enabled:
+        log.warning(
+            "VYAKHYA_API_KEY is unset — /api routes are UNAUTHENTICATED. Run ./setup.sh "
+            "to provision one for production."
+        )
     try:
         async with get_sessionmaker()() as session:
             await seed_defaults(session)

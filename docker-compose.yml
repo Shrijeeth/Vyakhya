@@ -33,7 +33,12 @@ services:
 
   # The single app: FastAPI backend (Agno agents, Scene-JSON) serving the built React Studio frontend.
   studio:
-    build: .                         # backend + built frontend in one image
+    build:
+      context: .                     # backend + built frontend in one image
+      args:
+        # Baked into the frontend build so the UI sends the API key.
+        VITE_API_KEY: ${VITE_API_KEY:-}
+        VITE_API_URL: ""             # same-origin (studio serves the FE)
     env_file: .env
     depends_on:
       postgres:

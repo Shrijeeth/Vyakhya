@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     # keys at rest. Provisioned by ./setup.sh into .env. Required in production;
     # a dev default keeps local boots working without secrets.
     encryption_key: str = Field(default="dev-insecure-key", alias="VYAKHYA_ENCRYPTION_KEY")
+    # Shared API key gating /api routes. Provisioned by ./setup.sh. When empty,
+    # auth is disabled (dev convenience) — a startup warning is logged.
+    api_key: str = Field(default="", alias="VYAKHYA_API_KEY")
 
     # ── Database ───────────────────────────────────────────────────────────
     database_url: str = Field(
@@ -44,6 +47,11 @@ class Settings(BaseSettings):
 
     # ── Render service ─────────────────────────────────────────────────────
     render_service_url: str = Field(default="http://localhost:8080", alias="RENDER_SERVICE_URL")
+    # When true, real renders are delegated to the Node render service; otherwise
+    # the in-process simulated executor is used (dev default).
+    use_render_service: bool = Field(default=False, alias="USE_RENDER_SERVICE")
+    # Shared key sent to the render service (must match its RENDER_API_KEY).
+    render_api_key: str = Field(default="", alias="RENDER_API_KEY")
 
     # ── Execution ──────────────────────────────────────────────────────────
     # When true, run the pipeline/render in-process (no Procrastinate worker
@@ -61,6 +69,10 @@ class Settings(BaseSettings):
     @property
     def is_encryption_key_secure(self) -> bool:
         return self.encryption_key not in ("", "dev-insecure-key")
+
+    @property
+    def auth_enabled(self) -> bool:
+        return bool(self.api_key)
 
 
 @lru_cache

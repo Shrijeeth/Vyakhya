@@ -186,6 +186,9 @@ else
   printf '\n  %sSecurity%s\n' "$BOLD" "$RESET"
   ENC_KEY="$(gen_key)"
   ok "Generated VYAKHYA_ENCRYPTION_KEY (encrypts provider keys at rest)."
+  API_KEY="$(gen_key | tr -dc 'A-Za-z0-9' | head -c 40)"
+  RENDER_API_KEY="$(gen_key | tr -dc 'A-Za-z0-9' | head -c 40)"
+  ok "Generated VYAKHYA_API_KEY + RENDER_API_KEY (gate the API and render service)."
 
   cat > .env <<EOF
 # ── Vyakhya environment ──────────────────────────────────────────────
@@ -195,6 +198,12 @@ else
 # KEEP THIS SECRET AND BACKED UP — losing it makes stored provider keys
 # unrecoverable (just re-enter them in the Model Config UI).
 VYAKHYA_ENCRYPTION_KEY=${ENC_KEY}
+
+# API key gating the backend /api routes. The frontend build embeds it as
+# VITE_API_KEY (same value). The backend↔render service shares RENDER_API_KEY.
+VYAKHYA_API_KEY=${API_KEY}
+VITE_API_KEY=${API_KEY}
+RENDER_API_KEY=${RENDER_API_KEY}
 
 # ── Database ─────────────────────────────────────────────────────────
 POSTGRES_USER=${POSTGRES_USER}
@@ -213,6 +222,8 @@ API_PORT=${API_PORT}
 WEB_PORT=${WEB_PORT}
 RENDER_PORT=${RENDER_PORT}
 RENDER_SERVICE_URL=http://render:8080
+# Set true to delegate real renders to the Node render service (else simulated).
+USE_RENDER_SERVICE=false
 
 # ── App ──────────────────────────────────────────────────────────────
 # Provider API keys are NOT set here — add them in the Model Config UI.

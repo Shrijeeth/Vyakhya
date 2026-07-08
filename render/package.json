@@ -1,0 +1,25 @@
+{
+  "name": "@vyakhya/render",
+  "version": "0.1.0",
+  "description": "Vyakhya render service — Scene-JSON → compile → lint → render → MP4",
+  "type": "module",
+  "main": "./dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@vyakhya/compiler": "workspace:*",
+    "fastify": "^5.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.16.5",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.3",
+    "vitest": "^4"
+  }
+}
