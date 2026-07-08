@@ -16,7 +16,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
 from vyakhya.agents.model_factory import build_llm_model
@@ -42,20 +42,26 @@ log = get_logger(__name__)
 
 
 # ── Generation schema (no ids/index — the persistence layer assigns those) ────
+# `alias` (not serialization_alias) so the model output (camelCase) both feeds
+# the JSON schema shown to the model AND parses back; populate_by_name keeps the
+# snake_case usable in Python. model_dump(by_alias=True) → camelCase for the
+# persistence layer (services.pipeline._persist_scenes reads visualType, etc.).
 class GenCitation(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     label: str
-    source_span: str = Field(serialization_alias="sourceSpan")
+    source_span: str = Field(alias="sourceSpan")
 
 
 class GenScene(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     narration: str
-    visual_type: VisualType = Field(serialization_alias="visualType")
+    visual_type: VisualType = Field(alias="visualType")
     params: dict[str, Any] = Field(default_factory=dict)
-    caption_style: CaptionStyle = Field(
-        default=CaptionStyle.MINIMAL, serialization_alias="captionStyle"
-    )
+    caption_style: CaptionStyle = Field(default=CaptionStyle.MINIMAL, alias="captionStyle")
     transition: SceneTransition = SceneTransition.FADE
-    duration_ms: int = Field(default=6000, serialization_alias="durationMs")
+    duration_ms: int = Field(default=6000, alias="durationMs")
     citations: list[GenCitation] = Field(default_factory=list)
 
 
@@ -142,6 +148,31 @@ async def _load_paper_text(project: Project) -> str:
         return f"(Could not read PDF: {exc}. Title: {project.title}.)"
 
 
+def _coerce_document(content: object) -> GenDocument | None:
+    """Normalize the agent output to a GenDocument. In JSON mode Agno may return
+    the model instance, a dict, or a raw JSON string (sometimes fenced)."""
+    if isinstance(content, GenDocument):
+        return content
+    if isinstance(content, dict):
+        try:
+            return GenDocument.model_validate(content)
+        except Exception:  # noqa: BLE001
+            return None
+    if isinstance(content, str):
+        import json
+        import re
+
+        text = content.strip()
+        fence = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
+        if fence:
+            text = fence.group(1)
+        try:
+            return GenDocument.model_validate(json.loads(text))
+        except Exception:  # noqa: BLE001
+            return None
+    return None
+
+
 class AgnoPipelineExecutor:
     """Real Agno crew. Emits the same events as the simulated executor."""
 
@@ -177,6 +208,10 @@ class AgnoPipelineExecutor:
             skills=skills,
             instructions=[*_DESIGNER_INSTRUCTIONS, _length_instruction(target_min, tts_enabled)],
             output_schema=GenDocument,
+            # JSON mode (schema injected into the prompt) instead of provider
+            # response_format — the latter can't be combined with tools, which
+            # the skills add (Groq/OpenAI reject "json mode + tool calling").
+            use_json_mode=True,
             markdown=False,
         )
 
@@ -194,14 +229,20 @@ class AgnoPipelineExecutor:
                     f"Language: {language}\n\nPaper text:\n{paper_text}"
                 )
                 result = await designer.arun(input=prompt, stream=False)
-                doc: GenDocument | None = result.content if result else None
-                if isinstance(doc, GenDocument):
-                    scenes_payload = [s.model_dump(by_alias=True) for s in doc.scenes]
+                doc = _coerce_document(result.content if result else None)
+                if doc is None:
                     yield _event(
                         PipelineEventType.LOG,
-                        f"[{label}] produced {len(scenes_payload)} scenes",
+                        f"[{label}] model returned no parseable scenes",
                         agent_id,
                     )
+                    raise RuntimeError("visual designer produced no scenes")
+                scenes_payload = [s.model_dump(by_alias=True) for s in doc.scenes]
+                yield _event(
+                    PipelineEventType.LOG,
+                    f"[{label}] produced {len(scenes_payload)} scenes",
+                    agent_id,
+                )
 
             yield _event(PipelineEventType.STATUS, AgentStatus.DONE.value, agent_id)
             yield _event(PipelineEventType.PROGRESS, round((idx + 1) / total, 3))
