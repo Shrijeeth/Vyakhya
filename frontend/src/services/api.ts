@@ -173,7 +173,9 @@ export async function listConnections(): Promise<ProviderConnection[]> {
   await sleep(120);
   return connectionsMem;
 }
-export async function addConnection(c: Omit<ProviderConnection, "id" | "status">): Promise<ProviderConnection> {
+export async function addConnection(
+  c: Omit<ProviderConnection, "id" | "status">,
+): Promise<ProviderConnection> {
   await sleep(200);
   const next: ProviderConnection = { ...c, id: `c${Date.now()}`, status: "unknown" };
   connectionsMem = [...connectionsMem, next];
@@ -197,7 +199,10 @@ export async function listAssignments(): Promise<AgentModelAssignment[]> {
   await sleep(80);
   return assignmentsMem;
 }
-export async function updateAssignment(role: AgentModelAssignment["role"], connectionId: string | null) {
+export async function updateAssignment(
+  role: AgentModelAssignment["role"],
+  connectionId: string | null,
+) {
   await sleep(80);
   assignmentsMem = assignmentsMem.map((a) => (a.role === role ? { ...a, connectionId } : a));
   return assignmentsMem;
@@ -267,7 +272,10 @@ export interface ParamField {
   placeholder?: string;
 }
 
-export const visualTypeSchemas: Record<string, { label: string; description: string; fields: ParamField[] }> = {
+export const visualTypeSchemas: Record<
+  string,
+  { label: string; description: string; fields: ParamField[] }
+> = {
   "title.card": {
     label: "Title card",
     description: "Opening title with subtitle.",
@@ -293,7 +301,12 @@ export const visualTypeSchemas: Record<string, { label: string; description: str
     label: "Equation build",
     description: "Progressive equation reveal.",
     fields: [
-      { key: "latex", label: "LaTeX", kind: "textarea", placeholder: "\\text{softmax}(QK^T/\\sqrt{d_k})V" },
+      {
+        key: "latex",
+        label: "LaTeX",
+        kind: "textarea",
+        placeholder: "\\text{softmax}(QK^T/\\sqrt{d_k})V",
+      },
     ],
   },
   "dataviz.bar": {

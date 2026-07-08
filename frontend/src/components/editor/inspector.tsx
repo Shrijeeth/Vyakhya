@@ -4,13 +4,21 @@ import { visualTypeSchemas, type ParamField } from "@/services/api";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { BookOpen, ExternalLink } from "lucide-react";
 
 export function Inspector() {
-  const scene = useEditorStore((s) => s.project?.scenes.find((sc) => sc.id === s.selectedSceneId) ?? null);
+  const scene = useEditorStore(
+    (s) => s.project?.scenes.find((sc) => sc.id === s.selectedSceneId) ?? null,
+  );
   const update = useEditorStore((s) => s.updateScene);
 
   if (!scene) {
@@ -48,11 +56,18 @@ export function Inspector() {
 
         <section className="space-y-2">
           <Label>Visual type</Label>
-          <Select value={scene.visualType} onValueChange={(v) => patch({ visualType: v as VisualType, params: {} })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+          <Select
+            value={scene.visualType}
+            onValueChange={(v) => patch({ visualType: v as VisualType, params: {} })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {Object.entries(visualTypeSchemas).map(([k, s]) => (
-                <SelectItem key={k} value={k}>{s.label} <span className="text-muted-foreground">· {k}</span></SelectItem>
+                <SelectItem key={k} value={k}>
+                  {s.label} <span className="text-muted-foreground">· {k}</span>
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -76,8 +91,13 @@ export function Inspector() {
         <section className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
             <Label>Caption style</Label>
-            <Select value={scene.captionStyle} onValueChange={(v) => patch({ captionStyle: v as Scene["captionStyle"] })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={scene.captionStyle}
+              onValueChange={(v) => patch({ captionStyle: v as Scene["captionStyle"] })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">None</SelectItem>
                 <SelectItem value="minimal">Minimal</SelectItem>
@@ -87,8 +107,13 @@ export function Inspector() {
           </div>
           <div className="space-y-2">
             <Label>Transition</Label>
-            <Select value={scene.transition} onValueChange={(v) => patch({ transition: v as Scene["transition"] })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={scene.transition}
+              onValueChange={(v) => patch({ transition: v as Scene["transition"] })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="cut">Cut</SelectItem>
                 <SelectItem value="fade">Fade</SelectItem>
@@ -106,7 +131,9 @@ export function Inspector() {
               value={scene.durationMs === "auto" ? "auto" : "manual"}
               onValueChange={(v) => patch({ durationMs: v === "auto" ? "auto" : 6000 })}
             >
-              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="auto">Auto</SelectItem>
                 <SelectItem value="manual">Manual</SelectItem>
@@ -127,7 +154,10 @@ export function Inspector() {
         </section>
 
         <section className="space-y-2">
-          <Label className="flex items-center gap-1.5"><BookOpen className="h-3.5 w-3.5" />Source citations</Label>
+          <Label className="flex items-center gap-1.5">
+            <BookOpen className="h-3.5 w-3.5" />
+            Source citations
+          </Label>
           {scene.citations.length === 0 ? (
             <div className="rounded-md border border-dashed border-border p-3 text-[11px] text-muted-foreground">
               No citations linked yet.
@@ -135,8 +165,14 @@ export function Inspector() {
           ) : (
             <ul className="space-y-1.5">
               {scene.citations.map((c) => (
-                <li key={c.id} className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs">
-                  <span><span className="font-medium">{c.label}</span> <span className="text-muted-foreground">{c.sourceSpan}</span></span>
+                <li
+                  key={c.id}
+                  className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs"
+                >
+                  <span>
+                    <span className="font-medium">{c.label}</span>{" "}
+                    <span className="text-muted-foreground">{c.sourceSpan}</span>
+                  </span>
                   <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]">
                     View source <ExternalLink className="ml-1 h-3 w-3" />
                   </Button>
@@ -150,12 +186,24 @@ export function Inspector() {
   );
 }
 
-function ParamInput({ field, value, onChange }: { field: ParamField; value: unknown; onChange: (v: unknown) => void }) {
+function ParamInput({
+  field,
+  value,
+  onChange,
+}: {
+  field: ParamField;
+  value: unknown;
+  onChange: (v: unknown) => void;
+}) {
   if (field.kind === "text") {
     return (
       <div className="space-y-1">
         <Label className="text-xs">{field.label}</Label>
-        <Input value={String(value ?? "")} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} />
+        <Input
+          value={String(value ?? "")}
+          placeholder={field.placeholder}
+          onChange={(e) => onChange(e.target.value)}
+        />
       </div>
     );
   }
@@ -163,7 +211,12 @@ function ParamInput({ field, value, onChange }: { field: ParamField; value: unkn
     return (
       <div className="space-y-1">
         <Label className="text-xs">{field.label}</Label>
-        <Textarea value={String(value ?? "")} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} className="font-mono text-xs" />
+        <Textarea
+          value={String(value ?? "")}
+          placeholder={field.placeholder}
+          onChange={(e) => onChange(e.target.value)}
+          className="font-mono text-xs"
+        />
       </div>
     );
   }
@@ -171,7 +224,11 @@ function ParamInput({ field, value, onChange }: { field: ParamField; value: unkn
     return (
       <div className="space-y-1">
         <Label className="text-xs">{field.label}</Label>
-        <Input type="number" value={Number(value ?? 0)} onChange={(e) => onChange(Number(e.target.value))} />
+        <Input
+          type="number"
+          value={Number(value ?? 0)}
+          onChange={(e) => onChange(Number(e.target.value))}
+        />
       </div>
     );
   }

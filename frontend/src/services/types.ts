@@ -89,13 +89,7 @@ export interface EditorProject {
   aspectRatio: AspectRatio;
 }
 
-export type ProviderId =
-  | "openai"
-  | "anthropic"
-  | "elevenlabs"
-  | "ollama"
-  | "gemini"
-  | "groq";
+export type ProviderId = "openai" | "anthropic" | "elevenlabs" | "ollama" | "gemini" | "groq";
 
 export interface ProviderConnection {
   id: string;
@@ -108,12 +102,7 @@ export interface ProviderConnection {
 }
 
 export type AgentRole =
-  | "comprehension"
-  | "planner"
-  | "scriptwriter"
-  | "visual_designer"
-  | "narrator"
-  | "verifier";
+  "comprehension" | "planner" | "scriptwriter" | "visual_designer" | "narrator" | "verifier";
 
 export interface AgentModelAssignment {
   role: AgentRole;

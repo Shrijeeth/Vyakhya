@@ -57,9 +57,14 @@ function AgentPromptsPage() {
           {prompts.map((p) => (
             <li key={p.id}>
               <button
-                onClick={() => { setSelected(p.id); setDraft(p.template); }}
+                onClick={() => {
+                  setSelected(p.id);
+                  setDraft(p.template);
+                }}
                 className={`w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                  p.id === active.id ? "bg-accent text-accent-foreground font-medium" : "hover:bg-muted/60"
+                  p.id === active.id
+                    ? "bg-accent text-accent-foreground font-medium"
+                    : "hover:bg-muted/60"
                 }`}
               >
                 {p.label}
@@ -77,13 +82,20 @@ function AgentPromptsPage() {
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => setDiffOpen(true)}>
-              <GitCompareArrows className="mr-1.5 h-3.5 w-3.5" />Diff vs default
+              <GitCompareArrows className="mr-1.5 h-3.5 w-3.5" />
+              Diff vs default
             </Button>
             <Button variant="ghost" size="sm" onClick={() => resetMut.mutate()}>
-              <RotateCcw className="mr-1.5 h-3.5 w-3.5" />Reset
+              <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+              Reset
             </Button>
-            <Button size="sm" onClick={() => saveMut.mutate()} disabled={!dirty || saveMut.isPending}>
-              <Save className="mr-1.5 h-3.5 w-3.5" />Save
+            <Button
+              size="sm"
+              onClick={() => saveMut.mutate()}
+              disabled={!dirty || saveMut.isPending}
+            >
+              <Save className="mr-1.5 h-3.5 w-3.5" />
+              Save
             </Button>
           </div>
         </div>
@@ -93,7 +105,11 @@ function AgentPromptsPage() {
             <Editor
               height="100%"
               defaultLanguage="markdown"
-              theme={typeof window !== "undefined" && document.documentElement.classList.contains("dark") ? "vs-dark" : "light"}
+              theme={
+                typeof window !== "undefined" && document.documentElement.classList.contains("dark")
+                  ? "vs-dark"
+                  : "light"
+              }
               value={draft}
               onChange={(v) => setDraft(v ?? "")}
               options={{
@@ -130,12 +146,20 @@ function AgentPromptsPage() {
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <div className="mb-1 text-[11px] font-medium uppercase text-muted-foreground">Default</div>
-              <pre className="max-h-[420px] overflow-auto rounded-md border border-border bg-muted/40 p-3 text-xs">{active.defaultTemplate}</pre>
+              <div className="mb-1 text-[11px] font-medium uppercase text-muted-foreground">
+                Default
+              </div>
+              <pre className="max-h-[420px] overflow-auto rounded-md border border-border bg-muted/40 p-3 text-xs">
+                {active.defaultTemplate}
+              </pre>
             </div>
             <div>
-              <div className="mb-1 text-[11px] font-medium uppercase text-muted-foreground">Current</div>
-              <pre className="max-h-[420px] overflow-auto rounded-md border border-border bg-muted/40 p-3 text-xs">{draft}</pre>
+              <div className="mb-1 text-[11px] font-medium uppercase text-muted-foreground">
+                Current
+              </div>
+              <pre className="max-h-[420px] overflow-auto rounded-md border border-border bg-muted/40 p-3 text-xs">
+                {draft}
+              </pre>
             </div>
           </div>
         </DialogContent>

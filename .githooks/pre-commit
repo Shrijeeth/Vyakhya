@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Vyakhya pre-commit hook — runs format / lint / buildcheck / test, scoped to
+# whichever side has staged changes. Enable once with:  git config core.hooksPath .githooks
+# (the repo-root `bun install` does this automatically via the "prepare" script).
+# Bypass in a pinch with:  git commit --no-verify
+set -uo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+if [[ -t 1 ]]; then
+  B=$'\033[1m'; R=$'\033[0m'; RED=$'\033[31m'; GRN=$'\033[32m'; YEL=$'\033[33m'
+else
+  B=""; R=""; RED=""; GRN=""; YEL=""
+fi
+
+staged="$(git diff --cached --name-only --diff-filter=ACM)"
+fe_changed=false
+be_changed=false
+grep -q '^frontend/' <<<"$staged" && fe_changed=true
+grep -q '^backend/'  <<<"$staged" && be_changed=true
+
+if [[ "$fe_changed" == false && "$be_changed" == false ]]; then
+  exit 0
+fi
+
+fail=0
+step() { printf '%s▶ %s%s\n' "$B" "$1" "$R"; }
+run() {
+  # run "<label>" <cmd...>
+  local label="$1"; shift
+  printf '  %s… %s%s' "$YEL" "$label" "$R"
+  if out="$("$@" 2>&1)"; then
+    printf '\r  %s✓ %s%s\n' "$GRN" "$label" "$R"
+  else
+    printf '\r  %s✗ %s%s\n' "$RED" "$label" "$R"
+    echo "$out" | sed 's/^/      /'
+    fail=1
+  fi
+}
+
+# ── Frontend (bun) ───────────────────────────────────────────────────────────
+if [[ "$fe_changed" == true ]]; then
+  step "Frontend checks (bun)"
+  if command -v bun >/dev/null 2>&1; then
+    ( cd frontend
+      set -e
+      bun run format:check
+    ) >/dev/null 2>&1 && printf '  %s✓ format%s\n' "$GRN" "$R" || { printf '  %s✗ format%s — run: bun --cwd frontend run format\n' "$RED" "$R"; fail=1; }
+    run "lint"      bun --cwd frontend run lint
+    run "typecheck" bun --cwd frontend run typecheck
+    run "build"     bun --cwd frontend run build
+    run "test"      bun --cwd frontend run test
+  else
+    printf '  %s! bun not found — skipping frontend checks%s\n' "$YEL" "$R"
+  fi
+fi
+
+# ── Backend (uv) ─────────────────────────────────────────────────────────────
+if [[ "$be_changed" == true ]]; then
+  step "Backend checks (uv)"
+  if command -v uv >/dev/null 2>&1; then
+    ( cd backend && uv run ruff format --check vyakhya tests ) >/dev/null 2>&1 \
+      && printf '  %s✓ format%s\n' "$GRN" "$R" \
+      || { printf '  %s✗ format%s — run: (cd backend && uv run ruff format vyakhya tests)\n' "$RED" "$R"; fail=1; }
+    run "lint"       bash -c 'cd backend && uv run ruff check vyakhya tests'
+    run "buildcheck" bash -c 'cd backend && uv run python -m compileall -q vyakhya'
+    run "test"       bash -c 'cd backend && uv run pytest -q'
+  else
+    printf '  %s! uv not found — skipping backend checks%s\n' "$YEL" "$R"
+  fi
+fi
+
+if [[ "$fail" -ne 0 ]]; then
+  printf '\n%s✗ pre-commit checks failed.%s Fix the above, or bypass with %sgit commit --no-verify%s\n' \
+    "$RED$B" "$R" "$B" "$R"
+  exit 1
+fi
+printf '\n%s✓ pre-commit checks passed.%s\n' "$GRN$B" "$R"

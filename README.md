@@ -82,6 +82,24 @@ bun --cwd frontend build    # client + SSR production build
 
 Frontend talks to the backend over the typed service layer in `frontend/src/services/` — the wire contract it expects is in [`docs/api.md`](docs/api.md).
 
+### Checks & git hooks
+
+Both sides are checked in CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) and by a git **pre-commit hook** that runs format · lint · buildcheck · test, scoped to whichever side (`frontend/` or `backend/`) has staged changes:
+
+```bash
+bun install            # from repo root — the "prepare" script enables the hook
+# or enable it manually:
+git config core.hooksPath .githooks
+```
+
+Bypass a single commit with `git commit --no-verify`. Run checks manually:
+
+```bash
+bun --cwd frontend run format:check && bun --cwd frontend run lint \
+  && bun --cwd frontend run typecheck && bun --cwd frontend run test
+(cd backend && uv run ruff format --check vyakhya tests && uv run ruff check vyakhya tests && uv run pytest -q)
+```
+
 ## Tech stack
 
 **Frontend:** React · **TanStack Start** (Router + Query) · TypeScript · Tailwind v4 · shadcn/ui · React Flow · Monaco · zustand — **bun** workspace

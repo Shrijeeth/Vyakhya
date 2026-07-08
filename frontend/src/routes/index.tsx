@@ -1,7 +1,15 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Plus, FileText, Clock, AlertTriangle, CheckCircle2, Loader2, FilePlus2 } from "lucide-react";
+import {
+  Plus,
+  FileText,
+  Clock,
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
+  FilePlus2,
+} from "lucide-react";
 import { listProjects } from "@/services/api";
 import type { Project, ProjectStatus } from "@/services/types";
 import { Button } from "@/components/ui/button";
@@ -11,10 +19,17 @@ export const Route = createFileRoute("/")({
   component: ProjectsPage,
 });
 
-const STATUS_STYLES: Record<ProjectStatus, { label: string; className: string; icon: React.ComponentType<{ className?: string }> }> = {
+const STATUS_STYLES: Record<
+  ProjectStatus,
+  { label: string; className: string; icon: React.ComponentType<{ className?: string }> }
+> = {
   draft: { label: "Draft", className: "bg-muted text-muted-foreground", icon: FileText },
   generating: { label: "Generating", className: "bg-accent text-accent-foreground", icon: Loader2 },
-  ready: { label: "Ready", className: "bg-[color:var(--success)]/15 text-[color:var(--success)]", icon: CheckCircle2 },
+  ready: {
+    label: "Ready",
+    className: "bg-[color:var(--success)]/15 text-[color:var(--success)]",
+    icon: CheckCircle2,
+  },
   failed: { label: "Failed", className: "bg-destructive/15 text-destructive", icon: AlertTriangle },
 };
 
@@ -44,7 +59,9 @@ function ProjectCard({ project, onOpen }: { project: Project; onOpen: (p: Projec
           <span className="font-devanagari text-6xl text-primary/25">व्या</span>
         </div>
         <div className="absolute right-3 top-3">
-          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${style.className}`}>
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${style.className}`}
+          >
             <Icon className={`h-3 w-3 ${project.status === "generating" ? "animate-spin" : ""}`} />
             {style.label}
           </span>
@@ -54,7 +71,10 @@ function ProjectCard({ project, onOpen }: { project: Project; onOpen: (p: Projec
         <h3 className="line-clamp-2 font-medium leading-tight">{project.title}</h3>
         <p className="text-xs text-muted-foreground">{project.sourcePaper}</p>
         <div className="mt-auto flex items-center justify-between pt-3 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" />{formatDuration(project.durationMs)}</span>
+          <span className="inline-flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {formatDuration(project.durationMs)}
+          </span>
           <span>{formatUpdated(project.updatedAt)}</span>
         </div>
       </div>
@@ -70,7 +90,8 @@ function EmptyState({ onNew }: { onNew: () => void }) {
       </div>
       <h2 className="text-lg font-semibold">Explain your first paper</h2>
       <p className="mt-2 text-sm text-muted-foreground">
-        Upload a PDF and Vyakhya's agent crew will draft a full, editable explainer video — narration, visuals, and citations included.
+        Upload a PDF and Vyakhya's agent crew will draft a full, editable explainer video —
+        narration, visuals, and citations included.
       </p>
       <Button className="mt-6" onClick={onNew}>
         <Plus className="mr-1.5 h-4 w-4" /> New video
@@ -109,7 +130,10 @@ function ProjectsPage() {
       {isLoading ? (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-64 animate-pulse rounded-lg border border-border bg-card/50" />
+            <div
+              key={i}
+              className="h-64 animate-pulse rounded-lg border border-border bg-card/50"
+            />
           ))}
         </div>
       ) : projects && projects.length > 0 ? (

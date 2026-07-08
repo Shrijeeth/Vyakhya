@@ -23,19 +23,35 @@ function fmt(ms: number) {
   return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
-export function PreviewPlayer({ html, seekMs, totalMs, playing, onSeek, onPlayPause, onStep, aspectRatio }: PreviewPlayerProps) {
+export function PreviewPlayer({
+  html,
+  seekMs,
+  totalMs,
+  playing,
+  onSeek,
+  onPlayPause,
+  onStep,
+  aspectRatio,
+}: PreviewPlayerProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   useEffect(() => {
     if (iframeRef.current) iframeRef.current.srcdoc = html;
   }, [html]);
 
-  const aspectClass = aspectRatio === "9:16" ? "aspect-[9/16] max-h-full" : aspectRatio === "1:1" ? "aspect-square max-h-full" : "aspect-video";
+  const aspectClass =
+    aspectRatio === "9:16"
+      ? "aspect-[9/16] max-h-full"
+      : aspectRatio === "1:1"
+        ? "aspect-square max-h-full"
+        : "aspect-video";
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-1 items-center justify-center overflow-hidden bg-muted/30 p-6">
-        <div className={`${aspectClass} w-full max-w-[1100px] overflow-hidden rounded-lg border border-border bg-card shadow-lg`}>
+        <div
+          className={`${aspectClass} w-full max-w-[1100px] overflow-hidden rounded-lg border border-border bg-card shadow-lg`}
+        >
           <iframe
             ref={iframeRef}
             title="Live preview"
@@ -50,14 +66,25 @@ export function PreviewPlayer({ html, seekMs, totalMs, playing, onSeek, onPlayPa
             <span className="h-1.5 w-1.5 rounded-full bg-primary" />
             Live preview (HTML)
           </span>
-          <span className="tabular-nums">{fmt(seekMs)} / {fmt(totalMs)}</span>
+          <span className="tabular-nums">
+            {fmt(seekMs)} / {fmt(totalMs)}
+          </span>
         </div>
         <div className="flex items-center gap-3">
-          <Button size="icon" variant="ghost" onClick={() => onStep(-1000)} aria-label="Step back"><SkipBack className="h-4 w-4" /></Button>
+          <Button size="icon" variant="ghost" onClick={() => onStep(-1000)} aria-label="Step back">
+            <SkipBack className="h-4 w-4" />
+          </Button>
           <Button size="icon" onClick={onPlayPause} aria-label={playing ? "Pause" : "Play"}>
             {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
           </Button>
-          <Button size="icon" variant="ghost" onClick={() => onStep(1000)} aria-label="Step forward"><SkipForward className="h-4 w-4" /></Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => onStep(1000)}
+            aria-label="Step forward"
+          >
+            <SkipForward className="h-4 w-4" />
+          </Button>
           <Slider
             className="flex-1"
             min={0}

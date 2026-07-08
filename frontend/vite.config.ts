@@ -8,10 +8,5 @@ import tsConfigPaths from "vite-tsconfig-paths";
 // @lovable.dev/vite-tanstack-config meta-plugin so the app builds anywhere.
 // src/start.ts and src/server.ts are picked up by Start via convention.
 export default defineConfig({
-  plugins: [
-    tsConfigPaths(),
-    tailwindcss(),
-    tanstackStart({ customViteReactPlugin: true }),
-    viteReact(),
-  ],
+  plugins: [tsConfigPaths(), tailwindcss(), tanstackStart(), viteReact()],
 });

@@ -10,7 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown } from "lucide-react";
@@ -54,7 +60,9 @@ function RenderSettingsPage() {
 
   if (!settings) return null;
 
-  const presetMatch = PRESETS.find((p) => p.width === settings.width && p.height === settings.height);
+  const presetMatch = PRESETS.find(
+    (p) => p.width === settings.width && p.height === settings.height,
+  );
 
   return (
     <div className="mx-auto max-w-4xl px-8 py-10">
@@ -82,12 +90,21 @@ function RenderSettingsPage() {
                 onValueChange={(v) => {
                   if (v === "custom") return;
                   const p = PRESETS.find((x) => x.label === v);
-                  if (p) { setField("width", p.width); setField("height", p.height); }
+                  if (p) {
+                    setField("width", p.width);
+                    setField("height", p.height);
+                  }
                 }}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  {PRESETS.map((p) => <SelectItem key={p.label} value={p.label}>{p.label}</SelectItem>)}
+                  {PRESETS.map((p) => (
+                    <SelectItem key={p.label} value={p.label}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
                   <SelectItem value="custom">Custom</SelectItem>
                 </SelectContent>
               </Select>
@@ -95,17 +112,30 @@ function RenderSettingsPage() {
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <Label>Width</Label>
-                <Input type="number" value={settings.width} onChange={(e) => setField("width", Number(e.target.value))} />
+                <Input
+                  type="number"
+                  value={settings.width}
+                  onChange={(e) => setField("width", Number(e.target.value))}
+                />
               </div>
               <div className="space-y-1">
                 <Label>Height</Label>
-                <Input type="number" value={settings.height} onChange={(e) => setField("height", Number(e.target.value))} />
+                <Input
+                  type="number"
+                  value={settings.height}
+                  onChange={(e) => setField("height", Number(e.target.value))}
+                />
               </div>
             </div>
             <div className="space-y-1">
               <Label>Frame rate</Label>
-              <Select value={String(settings.fps)} onValueChange={(v) => setField("fps", Number(v) as RenderSettings["fps"])}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={String(settings.fps)}
+                onValueChange={(v) => setField("fps", Number(v) as RenderSettings["fps"])}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="24">24 fps</SelectItem>
                   <SelectItem value="30">30 fps</SelectItem>
@@ -115,8 +145,13 @@ function RenderSettingsPage() {
             </div>
             <div className="space-y-1">
               <Label>Format</Label>
-              <Select value={settings.format} onValueChange={(v) => setField("format", v as RenderSettings["format"])}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={settings.format}
+                onValueChange={(v) => setField("format", v as RenderSettings["format"])}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="mp4">MP4</SelectItem>
                   <SelectItem value="webm">WebM</SelectItem>
@@ -125,7 +160,13 @@ function RenderSettingsPage() {
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Quality · {settings.quality}</Label>
-              <Slider min={30} max={100} step={1} value={[settings.quality]} onValueChange={(v) => setField("quality", v[0])} />
+              <Slider
+                min={30}
+                max={100}
+                step={1}
+                value={[settings.quality]}
+                onValueChange={(v) => setField("quality", v[0])}
+              />
             </div>
           </div>
         </section>
@@ -135,15 +176,33 @@ function RenderSettingsPage() {
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-1">
               <Label>Master · {settings.audioMasterDb} dB</Label>
-              <Slider min={-24} max={6} step={1} value={[settings.audioMasterDb]} onValueChange={(v) => setField("audioMasterDb", v[0])} />
+              <Slider
+                min={-24}
+                max={6}
+                step={1}
+                value={[settings.audioMasterDb]}
+                onValueChange={(v) => setField("audioMasterDb", v[0])}
+              />
             </div>
             <div className="space-y-1">
               <Label>Narration · {settings.audioNarrationDb} dB</Label>
-              <Slider min={-24} max={6} step={1} value={[settings.audioNarrationDb]} onValueChange={(v) => setField("audioNarrationDb", v[0])} />
+              <Slider
+                min={-24}
+                max={6}
+                step={1}
+                value={[settings.audioNarrationDb]}
+                onValueChange={(v) => setField("audioNarrationDb", v[0])}
+              />
             </div>
             <div className="space-y-1">
               <Label>Music · {settings.audioMusicDb} dB</Label>
-              <Slider min={-40} max={0} step={1} value={[settings.audioMusicDb]} onValueChange={(v) => setField("audioMusicDb", v[0])} />
+              <Slider
+                min={-40}
+                max={0}
+                step={1}
+                value={[settings.audioMusicDb]}
+                onValueChange={(v) => setField("audioMusicDb", v[0])}
+              />
             </div>
           </div>
         </section>
@@ -157,8 +216,13 @@ function RenderSettingsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <Label>Codec</Label>
-                <Select value={settings.codec} onValueChange={(v) => setField("codec", v as RenderSettings["codec"])}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={settings.codec}
+                  onValueChange={(v) => setField("codec", v as RenderSettings["codec"])}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="h264">H.264</SelectItem>
                     <SelectItem value="h265">H.265 / HEVC</SelectItem>
@@ -169,12 +233,20 @@ function RenderSettingsPage() {
               </div>
               <div className="space-y-1">
                 <Label>Worker concurrency · {settings.workers}</Label>
-                <Slider min={1} max={16} step={1} value={[settings.workers]} onValueChange={(v) => setField("workers", v[0])} />
+                <Slider
+                  min={1}
+                  max={16}
+                  step={1}
+                  value={[settings.workers]}
+                  onValueChange={(v) => setField("workers", v[0])}
+                />
               </div>
               <div className="col-span-2 flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2.5">
                 <div>
                   <Label className="text-sm">GPU acceleration</Label>
-                  <p className="text-[11px] text-muted-foreground">Use hardware encoders when available.</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Use hardware encoders when available.
+                  </p>
                 </div>
                 <Switch checked={settings.gpu} onCheckedChange={(v) => setField("gpu", v)} />
               </div>
@@ -185,14 +257,20 @@ function RenderSettingsPage() {
         {job && (
           <section className="rounded-lg border border-border bg-card p-5">
             <div className="flex items-center gap-3">
-              {job.status === "running" ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Play className="h-4 w-4 text-primary" />}
+              {job.status === "running" ? (
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              ) : (
+                <Play className="h-4 w-4 text-primary" />
+              )}
               <div className="flex-1">
                 <div className="text-sm font-semibold">
                   {job.status === "done" ? "Render complete" : "Rendering…"}
                 </div>
                 <Progress value={job.progress * 100} className="mt-2 h-1.5" />
               </div>
-              <span className="tabular-nums text-xs text-muted-foreground">{Math.round(job.progress * 100)}%</span>
+              <span className="tabular-nums text-xs text-muted-foreground">
+                {Math.round(job.progress * 100)}%
+              </span>
             </div>
             {job.status === "done" && job.outputUrl && (
               <div className="mt-5 space-y-3">

@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (bun)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Install the whole workspace from the repo-root lockfile.
+      - name: Install
+        run: bun install --frozen-lockfile
+        working-directory: .
+
+      - name: Format (prettier)
+        run: bun run format:check
+
+      - name: Lint (eslint)
+        run: bun run lint
+
+      - name: Typecheck + build
+        run: |
+          bun run typecheck
+          bun run build
+
+      - name: Test (vitest)
+        run: bun run test
+
+  backend:
+    name: Backend (uv)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --dev
+
+      - name: Format (ruff)
+        run: uv run ruff format --check vyakhya tests
+
+      - name: Lint (ruff)
+        run: uv run ruff check vyakhya tests
+
+      - name: Build check
+        run: uv build
+
+      - name: Test (pytest)
+        run: uv run pytest -q

@@ -2,7 +2,16 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, HelpCircle, Info, KeyRound, Loader2, Plus, Trash2, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  HelpCircle,
+  Info,
+  KeyRound,
+  Loader2,
+  Plus,
+  Trash2,
+  XCircle,
+} from "lucide-react";
 import {
   addConnection,
   listAssignments,
@@ -15,8 +24,21 @@ import type { ProviderConnection, ProviderId } from "@/services/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export const Route = createFileRoute("/model-config")({
@@ -25,15 +47,27 @@ export const Route = createFileRoute("/model-config")({
 
 const PROVIDERS: { id: ProviderId; label: string; models: string[] }[] = [
   { id: "openai", label: "OpenAI", models: ["gpt-4o", "gpt-4o-mini", "o1-preview"] },
-  { id: "anthropic", label: "Anthropic", models: ["claude-3.5-sonnet", "claude-3.5-haiku", "claude-3-opus"] },
+  {
+    id: "anthropic",
+    label: "Anthropic",
+    models: ["claude-3.5-sonnet", "claude-3.5-haiku", "claude-3-opus"],
+  },
   { id: "gemini", label: "Google Gemini", models: ["gemini-2.0-flash", "gemini-1.5-pro"] },
   { id: "groq", label: "Groq", models: ["llama-3.1-70b", "mixtral-8x7b"] },
   { id: "elevenlabs", label: "ElevenLabs", models: ["eleven_multilingual_v2", "eleven_turbo_v2"] },
   { id: "ollama", label: "Ollama (local)", models: ["llama3.1:70b", "qwen2.5:32b", "mistral"] },
 ];
 
-const ROLES: { id: "comprehension" | "planner" | "scriptwriter" | "visual_designer" | "narrator" | "verifier"; label: string; hint: string }[] = [
-  { id: "comprehension", label: "Comprehension", hint: "Reads the paper and structures its argument" },
+const ROLES: {
+  id: "comprehension" | "planner" | "scriptwriter" | "visual_designer" | "narrator" | "verifier";
+  label: string;
+  hint: string;
+}[] = [
+  {
+    id: "comprehension",
+    label: "Comprehension",
+    hint: "Reads the paper and structures its argument",
+  },
   { id: "planner", label: "Planner", hint: "Turns comprehension into scene beats" },
   { id: "scriptwriter", label: "Scriptwriter", hint: "Writes narration for each scene" },
   { id: "visual_designer", label: "Visual Designer", hint: "Picks visual types and parameters" },
@@ -42,9 +76,26 @@ const ROLES: { id: "comprehension" | "planner" | "scriptwriter" | "visual_design
 ];
 
 function StatusPill({ status }: { status: ProviderConnection["status"] }) {
-  if (status === "ok") return <span className="inline-flex items-center gap-1 text-xs text-[color:var(--success)]"><CheckCircle2 className="h-3.5 w-3.5" />Connected</span>;
-  if (status === "error") return <span className="inline-flex items-center gap-1 text-xs text-destructive"><XCircle className="h-3.5 w-3.5" />Failed</span>;
-  return <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><HelpCircle className="h-3.5 w-3.5" />Untested</span>;
+  if (status === "ok")
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-[color:var(--success)]">
+        <CheckCircle2 className="h-3.5 w-3.5" />
+        Connected
+      </span>
+    );
+  if (status === "error")
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-destructive">
+        <XCircle className="h-3.5 w-3.5" />
+        Failed
+      </span>
+    );
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+      <HelpCircle className="h-3.5 w-3.5" />
+      Untested
+    </span>
+  );
 }
 
 function AddConnectionForm({ onDone }: { onDone: () => void }) {
@@ -82,10 +133,14 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
               if (first) setModel(first);
             }}
           >
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {PROVIDERS.map((p) => (
-                <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
+                <SelectItem key={p.id} value={p.id}>
+                  {p.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -93,26 +148,45 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
         <div className="space-y-1">
           <Label>Model</Label>
           <Select value={model} onValueChange={setModel}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {providerModels.map((m) => (
-                <SelectItem key={m} value={m}>{m}</SelectItem>
+                <SelectItem key={m} value={m}>
+                  {m}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
           <Label>API key</Label>
-          <Input type="password" placeholder="sk-…" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+          <Input
+            type="password"
+            placeholder="sk-…"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+          />
         </div>
         <div className="space-y-1">
-          <Label>Base URL <span className="text-muted-foreground">(optional)</span></Label>
-          <Input placeholder="https://api.example.com" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+          <Label>
+            Base URL <span className="text-muted-foreground">(optional)</span>
+          </Label>
+          <Input
+            placeholder="https://api.example.com"
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+          />
         </div>
       </div>
       <div className="mt-3 flex justify-end gap-2">
-        <Button variant="ghost" onClick={onDone}>Cancel</Button>
-        <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>Add</Button>
+        <Button variant="ghost" onClick={onDone}>
+          Cancel
+        </Button>
+        <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+          Add
+        </Button>
       </div>
     </div>
   );
@@ -121,8 +195,14 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
 function ModelConfigPage() {
   const [adding, setAdding] = useState(false);
   const qc = useQueryClient();
-  const { data: connections = [] } = useQuery({ queryKey: ["connections"], queryFn: listConnections });
-  const { data: assignments = [] } = useQuery({ queryKey: ["assignments"], queryFn: listAssignments });
+  const { data: connections = [] } = useQuery({
+    queryKey: ["connections"],
+    queryFn: listConnections,
+  });
+  const { data: assignments = [] } = useQuery({
+    queryKey: ["assignments"],
+    queryFn: listAssignments,
+  });
 
   const testMut = useMutation({
     mutationFn: (id: string) => testConnection(id),
@@ -139,8 +219,13 @@ function ModelConfigPage() {
     },
   });
   const assignMut = useMutation({
-    mutationFn: ({ role, connectionId }: { role: (typeof ROLES)[number]["id"]; connectionId: string | null }) =>
-      updateAssignment(role, connectionId),
+    mutationFn: ({
+      role,
+      connectionId,
+    }: {
+      role: (typeof ROLES)[number]["id"];
+      connectionId: string | null;
+    }) => updateAssignment(role, connectionId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["assignments"] }),
   });
 
@@ -149,17 +234,23 @@ function ModelConfigPage() {
       <div className="mb-6 flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Model configuration</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Provider connections and per-agent model assignments.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Provider connections and per-agent model assignments.
+          </p>
         </div>
         {!adding && (
-          <Button onClick={() => setAdding(true)}><Plus className="mr-1.5 h-4 w-4" />Add connection</Button>
+          <Button onClick={() => setAdding(true)}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Add connection
+          </Button>
         )}
       </div>
 
       <Alert className="mb-6 border-border bg-card">
         <Info className="h-4 w-4" />
         <AlertDescription className="text-xs text-muted-foreground">
-          API keys are stored encrypted on your server. Vyakhya never sends them anywhere except the provider you configure.
+          API keys are stored encrypted on your server. Vyakhya never sends them anywhere except the
+          provider you configure.
         </AlertDescription>
       </Alert>
 
@@ -170,7 +261,9 @@ function ModelConfigPage() {
       )}
 
       <div className="rounded-lg border border-border bg-card">
-        <div className="border-b border-border px-4 py-3 text-sm font-semibold">Provider connections</div>
+        <div className="border-b border-border px-4 py-3 text-sm font-semibold">
+          Provider connections
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -186,14 +279,35 @@ function ModelConfigPage() {
               <TableRow key={c.id}>
                 <TableCell className="font-medium capitalize">{c.provider}</TableCell>
                 <TableCell className="text-muted-foreground">{c.model}</TableCell>
-                <TableCell><span className="inline-flex items-center gap-1 font-mono text-xs"><KeyRound className="h-3 w-3" />{c.apiKeyMasked}</span></TableCell>
-                <TableCell><StatusPill status={c.status} /></TableCell>
+                <TableCell>
+                  <span className="inline-flex items-center gap-1 font-mono text-xs">
+                    <KeyRound className="h-3 w-3" />
+                    {c.apiKeyMasked}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <StatusPill status={c.status} />
+                </TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => testMut.mutate(c.id)} disabled={testMut.isPending}>
-                      {testMut.isPending && testMut.variables === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Test"}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => testMut.mutate(c.id)}
+                      disabled={testMut.isPending}
+                    >
+                      {testMut.isPending && testMut.variables === c.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        "Test"
+                      )}
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => removeMut.mutate(c.id)} aria-label="Delete">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeMut.mutate(c.id)}
+                      aria-label="Delete"
+                    >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -205,7 +319,9 @@ function ModelConfigPage() {
       </div>
 
       <div className="mt-8 rounded-lg border border-border bg-card">
-        <div className="border-b border-border px-4 py-3 text-sm font-semibold">Agent role assignments</div>
+        <div className="border-b border-border px-4 py-3 text-sm font-semibold">
+          Agent role assignments
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -225,13 +341,19 @@ function ModelConfigPage() {
                   <TableCell>
                     <Select
                       value={a?.connectionId ?? "none"}
-                      onValueChange={(v) => assignMut.mutate({ role: r.id, connectionId: v === "none" ? null : v })}
+                      onValueChange={(v) =>
+                        assignMut.mutate({ role: r.id, connectionId: v === "none" ? null : v })
+                      }
                     >
-                      <SelectTrigger className="w-72"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="w-72">
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">— unassigned —</SelectItem>
                         {connections.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>{c.provider} · {c.model}</SelectItem>
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.provider} · {c.model}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

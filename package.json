@@ -3,5 +3,9 @@
   "private": true,
   "workspaces": [
     "frontend"
-  ]
+  ],
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
+    "hooks:install": "git config core.hooksPath .githooks"
+  }
 }

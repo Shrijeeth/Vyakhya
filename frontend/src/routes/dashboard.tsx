@@ -18,13 +18,20 @@ export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
       { title: "Dashboard — Vyakhya" },
-      { name: "description", content: "Overview of your Vyakhya workspace: projects, pipeline health, and recent activity." },
+      {
+        name: "description",
+        content:
+          "Overview of your Vyakhya workspace: projects, pipeline health, and recent activity.",
+      },
     ],
   }),
   component: DashboardPage,
 });
 
-const STATUS_META: Record<ProjectStatus, { label: string; className: string; icon: React.ComponentType<{ className?: string }> }> = {
+const STATUS_META: Record<
+  ProjectStatus,
+  { label: string; className: string; icon: React.ComponentType<{ className?: string }> }
+> = {
   draft: { label: "Draft", className: "text-muted-foreground", icon: FileText },
   generating: { label: "Generating", className: "text-accent-foreground", icon: Loader2 },
   ready: { label: "Ready", className: "text-[color:var(--success)]", icon: CheckCircle2 },
@@ -66,7 +73,9 @@ function StatCard({
   return (
     <div className="rounded-lg border border-border bg-card p-5">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
+        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          {label}
+        </span>
         <Icon className={`h-4 w-4 ${accent ?? "text-muted-foreground"}`} />
       </div>
       <div className="mt-3 text-3xl font-semibold tracking-tight">{value}</div>
@@ -138,9 +147,17 @@ function DashboardPage() {
         <StatCard
           label="Provider health"
           value={`${okConnections}/${connections.length || 0}`}
-          sub={okConnections === connections.length && connections.length > 0 ? "All keys OK" : "Some untested"}
+          sub={
+            okConnections === connections.length && connections.length > 0
+              ? "All keys OK"
+              : "Some untested"
+          }
           icon={Plug}
-          accent={okConnections === connections.length && connections.length > 0 ? "text-[color:var(--success)]" : "text-muted-foreground"}
+          accent={
+            okConnections === connections.length && connections.length > 0
+              ? "text-[color:var(--success)]"
+              : "text-muted-foreground"
+          }
         />
       </div>
 
@@ -175,10 +192,14 @@ function DashboardPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium">{p.title}</div>
-                        <div className="truncate text-xs text-muted-foreground">{p.sourcePaper}</div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {p.sourcePaper}
+                        </div>
                       </div>
                       <span className={`inline-flex items-center gap-1 text-xs ${meta.className}`}>
-                        <Icon className={`h-3 w-3 ${p.status === "generating" ? "animate-spin" : ""}`} />
+                        <Icon
+                          className={`h-3 w-3 ${p.status === "generating" ? "animate-spin" : ""}`}
+                        />
                         {meta.label}
                       </span>
                       <span className="w-16 text-right text-xs text-muted-foreground">
@@ -227,22 +248,30 @@ function DashboardPage() {
           <div className="rounded-lg border border-border bg-card">
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
               <h2 className="text-sm font-semibold">Verifier flags</h2>
-              <ShieldAlert className={`h-4 w-4 ${failFlags ? "text-destructive" : warnFlags ? "text-[color:var(--warning,#c47b1a)]" : "text-muted-foreground"}`} />
+              <ShieldAlert
+                className={`h-4 w-4 ${failFlags ? "text-destructive" : warnFlags ? "text-[color:var(--warning,#c47b1a)]" : "text-muted-foreground"}`}
+              />
             </div>
             <div className="grid grid-cols-3 gap-2 p-4 text-center">
               <div>
                 <div className="text-2xl font-semibold text-destructive">{failFlags}</div>
-                <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Fail</div>
+                <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                  Fail
+                </div>
               </div>
               <div>
                 <div className="text-2xl font-semibold">{warnFlags}</div>
-                <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Warn</div>
+                <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                  Warn
+                </div>
               </div>
               <div>
                 <div className="text-2xl font-semibold text-[color:var(--success)]">
                   {flags.length - failFlags - warnFlags}
                 </div>
-                <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Pass</div>
+                <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                  Pass
+                </div>
               </div>
             </div>
           </div>

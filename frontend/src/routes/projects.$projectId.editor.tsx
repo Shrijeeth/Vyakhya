@@ -18,7 +18,9 @@ function EditorPage() {
   const navigate = useNavigate();
   const setProject = useEditorStore((s) => s.setProject);
   const project = useEditorStore((s) => s.project);
-  const scene = useEditorStore((s) => s.project?.scenes.find((sc) => sc.id === s.selectedSceneId) ?? null);
+  const scene = useEditorStore(
+    (s) => s.project?.scenes.find((sc) => sc.id === s.selectedSceneId) ?? null,
+  );
   const currentTime = useEditorStore((s) => s.currentTimeMs);
   const playing = useEditorStore((s) => s.playing);
   const setCurrentTime = useEditorStore((s) => s.setCurrentTime);
@@ -55,7 +57,11 @@ function EditorPage() {
   }, [playing, currentTime, project, setCurrentTime]);
 
   if (!project) {
-    return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading editor…</div>;
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        Loading editor…
+      </div>
+    );
   }
 
   return (
@@ -68,7 +74,11 @@ function EditorPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate({ to: "/projects/$projectId/pipeline", params: { projectId } })}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate({ to: "/projects/$projectId/pipeline", params: { projectId } })}
+          >
             View pipeline
           </Button>
           <Button size="sm" onClick={() => navigate({ to: "/render-settings" })}>
@@ -89,7 +99,9 @@ function EditorPage() {
             playing={playing}
             onSeek={setCurrentTime}
             onPlayPause={() => setPlaying(!playing)}
-            onStep={(d) => setCurrentTime(Math.max(0, Math.min(project.totalDurationMs, currentTime + d)))}
+            onStep={(d) =>
+              setCurrentTime(Math.max(0, Math.min(project.totalDurationMs, currentTime + d)))
+            }
             aspectRatio={project.aspectRatio}
           />
         </div>

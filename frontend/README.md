@@ -29,6 +29,7 @@ Or from this folder:
 bun run dev       # dev server
 bun run build     # client + SSR build
 bun run lint      # eslint
+bun run test      # vitest (unit) — bun run test:watch for watch mode
 ```
 
 ## Layout

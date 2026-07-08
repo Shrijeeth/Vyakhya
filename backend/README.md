@@ -10,13 +10,61 @@ Responsibilities:
 - Agno **Skills** (`LocalSkills` → `../skills/hyperframes/`) power the design-time Block-Author agent.
 - Serve the frontend build (static) so the app ships as one container.
 
+## Stack
+
+FastAPI · SQLAlchemy 2.0 async (asyncpg) · Alembic · Pydantic v2 / pydantic-settings ·
+Procrastinate (Postgres jobs) · `cryptography` (AES-256-GCM). Agno is an optional
+extra (`uv sync --extra agents`) so the core API installs fast.
+
+## Layout
+
+```text
+vyakhya/
+  core/         config · database (async engine/session) · security (key encryption) ·
+                events (pub/sub → SSE) · logging
+  db/
+    models/     SQLAlchemy models mirroring docs/db-schema.md
+    migrations/ Alembic env + versions
+  enums.py      domain enums = single source for models, schemas, and DB ENUM types
+  schemas/      Pydantic DTOs (camelCase wire ⇄ snake_case) matching docs/api.md
+  services/     business logic — projects · editor · pipeline · connections · prompts ·
+                render · crypto (encryptor + per-install salt) · mappers
+  agents/       Scene-JSON schema (future Agno output_schema) + PipelineExecutor seam
+  api/routes/   health · projects · editor · pipeline (SSE) · connections · prompts · render (SSE)
+  seed.py       default prompts / render settings / install salt (on startup)
+  main.py       app factory · lifespan (seed) · CORS · serve FE build
+```
+
+The wire contract is [`../docs/api.md`](../docs/api.md); the schema is
+[`../docs/db-schema.md`](../docs/db-schema.md). The agent pipeline and render are
+**simulated** behind clean executor seams (`agents/pipeline.py`,
+`services/render.py`) — the real Agno crew and Node `render/` calls drop in there
+without touching routes or services.
+
 ## Dev
 
 ```bash
-uv sync                                    # create .venv + install from uv.lock
-uv run uvicorn vyakhya.main:app --reload   # API on http://localhost:8000
-# worker:
-uv run procrastinate worker
+uv sync                                        # create .venv + install from uv.lock
+uv run alembic upgrade head                    # apply migrations (needs Postgres)
+uv run uvicorn vyakhya.main:app --reload       # API on http://localhost:8000, docs at /docs
+uv run procrastinate worker                    # background worker (production job path)
 ```
 
-> Scaffold placeholder — module layout, pyproject, and the Scene-JSON Pydantic models land here next.
+Env comes from the repo-root `.env` (see `.env.example`); `DATABASE_URL` and
+`VYAKHYA_ENCRYPTION_KEY` are the two that matter. Create a migration after model
+changes with `uv run alembic revision --autogenerate -m "…"`.
+
+## Tests
+
+Pure unit tests (no DB) covering encryption, DTO mapping, schema (camelCase)
+serialization, the simulated pipeline executor, preview compile, and config.
+
+```bash
+uv run pytest -q
+```
+
+## Quality
+
+```bash
+uv run ruff check vyakhya && uv run ruff format vyakhya
+```

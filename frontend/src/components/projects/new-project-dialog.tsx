@@ -15,7 +15,13 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { createProject } from "@/services/api";
 import type { AspectRatio, AudienceLevel } from "@/services/types";
@@ -60,7 +66,13 @@ export function NewProjectDialog({
   const mutation = useMutation({
     mutationFn: async () => {
       if (!file) throw new Error("Upload a PDF first.");
-      return createProject({ file, audience, aspectRatio: aspect, language, targetLengthMin: targetLen });
+      return createProject({
+        file,
+        audience,
+        aspectRatio: aspect,
+        language,
+        targetLengthMin: targetLen,
+      });
     },
     onSuccess: (p) => {
       qc.invalidateQueries({ queryKey: ["projects"] });
@@ -103,12 +115,16 @@ export function NewProjectDialog({
                 if (f) simulateParse(f);
               }}
               className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-10 text-center transition-colors ${
-                dragOver ? "border-primary bg-accent" : "border-border hover:border-primary/60 hover:bg-muted/40"
+                dragOver
+                  ? "border-primary bg-accent"
+                  : "border-border hover:border-primary/60 hover:bg-muted/40"
               }`}
             >
               <UploadCloud className="h-8 w-8 text-muted-foreground" />
               <div className="text-sm font-medium">Drop PDF here or click to upload</div>
-              <div className="text-xs text-muted-foreground">Single research paper, up to ~50 pages works best</div>
+              <div className="text-xs text-muted-foreground">
+                Single research paper, up to ~50 pages works best
+              </div>
               <input
                 type="file"
                 accept="application/pdf"
@@ -154,7 +170,9 @@ export function NewProjectDialog({
                   <label
                     key={v}
                     className={`cursor-pointer rounded-md border px-2 py-2 text-center text-xs capitalize transition-colors ${
-                      audience === v ? "border-primary bg-accent text-accent-foreground" : "border-border hover:bg-muted/50"
+                      audience === v
+                        ? "border-primary bg-accent text-accent-foreground"
+                        : "border-border hover:bg-muted/50"
                     }`}
                   >
                     <RadioGroupItem value={v} className="sr-only" />
@@ -174,7 +192,9 @@ export function NewProjectDialog({
                   <label
                     key={v}
                     className={`cursor-pointer rounded-md border px-2 py-2 text-center text-xs transition-colors ${
-                      aspect === v ? "border-primary bg-accent text-accent-foreground" : "border-border hover:bg-muted/50"
+                      aspect === v
+                        ? "border-primary bg-accent text-accent-foreground"
+                        : "border-border hover:bg-muted/50"
                     }`}
                   >
                     <RadioGroupItem value={v} className="sr-only" />
@@ -187,7 +207,9 @@ export function NewProjectDialog({
             <div className="space-y-2">
               <Label>Language</Label>
               <Select value={language} onValueChange={setLanguage}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="en">English</SelectItem>
                   <SelectItem value="es">Spanish</SelectItem>
@@ -213,7 +235,9 @@ export function NewProjectDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
           <Button
             onClick={() => mutation.mutate()}
             disabled={!file || parseProgress < 100 || mutation.isPending}

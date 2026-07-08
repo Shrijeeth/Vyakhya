@@ -1,4 +1,17 @@
-import { GripVertical, Plus, Copy, Trash2, Type, ListChecks, Image as ImageIcon, Sigma, BarChart3, Network, Columns2, Zap } from "lucide-react";
+import {
+  GripVertical,
+  Plus,
+  Copy,
+  Trash2,
+  Type,
+  ListChecks,
+  Image as ImageIcon,
+  Sigma,
+  BarChart3,
+  Network,
+  Columns2,
+  Zap,
+} from "lucide-react";
 import type { Scene, VisualType } from "@/services/types";
 import { useEditorStore } from "@/store/editor-store";
 import { Button } from "@/components/ui/button";
@@ -38,9 +51,14 @@ export function SceneList() {
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div>
           <div className="text-sm font-semibold">Scenes</div>
-          <div className="text-[11px] text-muted-foreground">{scenes.length} scenes · {(totalMs / 1000).toFixed(0)}s total</div>
+          <div className="text-[11px] text-muted-foreground">
+            {scenes.length} scenes · {(totalMs / 1000).toFixed(0)}s total
+          </div>
         </div>
-        <Button size="sm" variant="ghost" onClick={addScene}><Plus className="mr-1 h-3.5 w-3.5" />Add</Button>
+        <Button size="sm" variant="ghost" onClick={addScene}>
+          <Plus className="mr-1 h-3.5 w-3.5" />
+          Add
+        </Button>
       </div>
 
       <ScrollArea className="flex-1">
@@ -62,7 +80,9 @@ export function SceneList() {
                 }}
                 onClick={() => selectScene(s.id)}
                 className={`group flex cursor-pointer items-start gap-2 rounded-md border p-2.5 transition-colors ${
-                  isSelected ? "border-primary bg-accent" : "border-border bg-card hover:bg-muted/50"
+                  isSelected
+                    ? "border-primary bg-accent"
+                    : "border-border bg-card hover:bg-muted/50"
                 }`}
               >
                 <GripVertical className="mt-0.5 h-3.5 w-3.5 cursor-grab text-muted-foreground opacity-0 group-hover:opacity-100" />
@@ -76,19 +96,29 @@ export function SceneList() {
                     <span>{s.visualType}</span>
                     <span>·</span>
                     <span>{fmtDuration(s.durationMs)}</span>
-                    {isDirty && <span className="rounded-full bg-[color:var(--warning)]/20 px-1.5 text-[color:var(--warning)]">unsaved</span>}
+                    {isDirty && (
+                      <span className="rounded-full bg-[color:var(--warning)]/20 px-1.5 text-[color:var(--warning)]">
+                        unsaved
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100">
                   <button
-                    onClick={(e) => { e.stopPropagation(); duplicateScene(s.id); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      duplicateScene(s.id);
+                    }}
                     className="rounded p-1 text-muted-foreground hover:bg-background hover:text-foreground"
                     aria-label="Duplicate"
                   >
                     <Copy className="h-3 w-3" />
                   </button>
                   <button
-                    onClick={(e) => { e.stopPropagation(); deleteScene(s.id); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteScene(s.id);
+                    }}
                     className="rounded p-1 text-muted-foreground hover:bg-background hover:text-destructive"
                     aria-label="Delete"
                   >
@@ -115,7 +145,9 @@ function TimelineStrip() {
 
   return (
     <div className="border-t border-border bg-muted/30 p-3">
-      <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Timeline</div>
+      <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        Timeline
+      </div>
       <div className="flex h-8 gap-0.5 overflow-hidden rounded-md">
         {scenes.map((s) => {
           const dur = s.durationMs === "auto" ? 6000 : s.durationMs;
@@ -129,10 +161,15 @@ function TimelineStrip() {
           return (
             <button
               key={s.id}
-              onClick={() => { selectScene(s.id); setCurrentTime(start); }}
+              onClick={() => {
+                selectScene(s.id);
+                setCurrentTime(start);
+              }}
               style={{ width: `${pct}%` }}
               className={`flex items-center justify-center overflow-hidden text-[10px] font-medium transition-colors ${
-                isSelected ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-primary/20"
+                isSelected
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary text-secondary-foreground hover:bg-primary/20"
               }`}
               title={`Scene ${s.index}`}
             >

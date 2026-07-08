@@ -86,7 +86,13 @@ export const mockVerifierFlags: VerifierFlag[] = [
   },
 ];
 
-const s = (i: number, narration: string, visualType: VisualType, params: Record<string, unknown> = {}, durationMs = 8000): Scene => ({
+const s = (
+  i: number,
+  narration: string,
+  visualType: VisualType,
+  params: Record<string, unknown> = {},
+  durationMs = 8000,
+): Scene => ({
   id: `s${i}`,
   index: i,
   narration,
@@ -95,9 +101,7 @@ const s = (i: number, narration: string, visualType: VisualType, params: Record<
   captionStyle: "minimal",
   transition: "fade",
   durationMs,
-  citations: [
-    { id: `c${i}`, label: `[${i}]`, sourceSpan: `§${i}.1, p. ${i + 2}` },
-  ],
+  citations: [{ id: `c${i}`, label: `[${i}]`, sourceSpan: `§${i}.1, p. ${i + 2}` }],
 });
 
 export const mockEditorProject: EditorProject = {
@@ -106,21 +110,95 @@ export const mockEditorProject: EditorProject = {
   aspectRatio: "16:9",
   totalDurationMs: 5 * 60 * 1000 + 42_000,
   scenes: [
-    s(1, "In 2017, a team at Google published a paper that quietly rewrote how machines understand language.", "title.card", { title: "Attention Is All You Need", subtitle: "Vaswani et al., 2017" }, 6000),
-    s(2, "Before the Transformer, sequence models processed words one at a time. This was slow, and it forgot long-range context.", "bullet.reveal", { bullets: ["Sequential processing", "Vanishing context", "Hard to parallelize"] }, 9000),
-    s(3, "The Transformer replaces recurrence with a single mechanism: attention.", "kinetic.type", { text: "attention" }, 5000),
-    s(4, "Attention scores every pair of tokens, letting the model weigh what matters, everywhere at once.", "diagram.attention", { tokens: ["The", "cat", "sat", "on", "the", "mat"] }, 10000),
-    s(5, "Multi-head attention runs several attention operations in parallel, each learning a different relationship.", "figure.callout", { caption: "Multi-Head Attention" }, 8000),
-    s(6, "The whole architecture stacks encoder and decoder blocks — no recurrence, no convolution.", "comparison.split", { left: "RNN", right: "Transformer" }, 8000),
-    s(7, "Training was faster, results were state of the art, and every modern LLM traces back to this design.", "dataviz.bar", { series: [{ label: "RNN", value: 25.2 }, { label: "Transformer", value: 28.4 }] }, 8000),
+    s(
+      1,
+      "In 2017, a team at Google published a paper that quietly rewrote how machines understand language.",
+      "title.card",
+      { title: "Attention Is All You Need", subtitle: "Vaswani et al., 2017" },
+      6000,
+    ),
+    s(
+      2,
+      "Before the Transformer, sequence models processed words one at a time. This was slow, and it forgot long-range context.",
+      "bullet.reveal",
+      { bullets: ["Sequential processing", "Vanishing context", "Hard to parallelize"] },
+      9000,
+    ),
+    s(
+      3,
+      "The Transformer replaces recurrence with a single mechanism: attention.",
+      "kinetic.type",
+      { text: "attention" },
+      5000,
+    ),
+    s(
+      4,
+      "Attention scores every pair of tokens, letting the model weigh what matters, everywhere at once.",
+      "diagram.attention",
+      { tokens: ["The", "cat", "sat", "on", "the", "mat"] },
+      10000,
+    ),
+    s(
+      5,
+      "Multi-head attention runs several attention operations in parallel, each learning a different relationship.",
+      "figure.callout",
+      { caption: "Multi-Head Attention" },
+      8000,
+    ),
+    s(
+      6,
+      "The whole architecture stacks encoder and decoder blocks — no recurrence, no convolution.",
+      "comparison.split",
+      { left: "RNN", right: "Transformer" },
+      8000,
+    ),
+    s(
+      7,
+      "Training was faster, results were state of the art, and every modern LLM traces back to this design.",
+      "dataviz.bar",
+      {
+        series: [
+          { label: "RNN", value: 25.2 },
+          { label: "Transformer", value: 28.4 },
+        ],
+      },
+      8000,
+    ),
   ],
 };
 
 export const mockConnections: ProviderConnection[] = [
-  { id: "c1", provider: "openai", model: "gpt-4o", apiKeyMasked: "sk-…4a8f", status: "ok", lastTestedAt: "2026-07-06T09:00:00Z" },
-  { id: "c2", provider: "anthropic", model: "claude-3.5-sonnet", apiKeyMasked: "sk-ant-…9b21", status: "ok", lastTestedAt: "2026-07-06T09:01:00Z" },
-  { id: "c3", provider: "elevenlabs", model: "eleven_multilingual_v2", apiKeyMasked: "el-…7cc0", status: "ok" },
-  { id: "c4", provider: "ollama", model: "llama3.1:70b", apiKeyMasked: "—", baseUrl: "http://localhost:11434", status: "unknown" },
+  {
+    id: "c1",
+    provider: "openai",
+    model: "gpt-4o",
+    apiKeyMasked: "sk-…4a8f",
+    status: "ok",
+    lastTestedAt: "2026-07-06T09:00:00Z",
+  },
+  {
+    id: "c2",
+    provider: "anthropic",
+    model: "claude-3.5-sonnet",
+    apiKeyMasked: "sk-ant-…9b21",
+    status: "ok",
+    lastTestedAt: "2026-07-06T09:01:00Z",
+  },
+  {
+    id: "c3",
+    provider: "elevenlabs",
+    model: "eleven_multilingual_v2",
+    apiKeyMasked: "el-…7cc0",
+    status: "ok",
+  },
+  {
+    id: "c4",
+    provider: "ollama",
+    model: "llama3.1:70b",
+    apiKeyMasked: "—",
+    baseUrl: "http://localhost:11434",
+    status: "unknown",
+  },
 ];
 
 export const mockAssignments: AgentModelAssignment[] = [
