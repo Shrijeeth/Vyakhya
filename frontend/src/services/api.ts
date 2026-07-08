@@ -181,6 +181,18 @@ export function compileScenePreview(scene: Scene): Promise<string> {
   return Promise.resolve(compile(doc, { fit: true }));
 }
 
+// Compile the whole project into a single seekable preview composition — the
+// scrubber/playhead drives which scene shows and animates (see PreviewPlayer).
+export function compileProjectPreview(project: EditorProject): string {
+  const doc: SceneDocument = {
+    id: project.id,
+    title: project.title,
+    aspectRatio: project.aspectRatio,
+    scenes: project.scenes as unknown as SceneNode[],
+  };
+  return compile(doc, { preview: true });
+}
+
 // ---------------- Model config ----------------
 export function listConnections(): Promise<ProviderConnection[]> {
   return http<ProviderConnection[]>("/connections");

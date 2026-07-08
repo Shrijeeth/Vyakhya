@@ -39,6 +39,13 @@ export function PreviewPlayer({
     if (iframeRef.current) iframeRef.current.srcdoc = html;
   }, [html]);
 
+  // Drive the seekable runtime inside the iframe: post the current time on every
+  // scrub/tick. The composition is a pure function of t (active scene + frozen
+  // entrance animations), so playback is just a stream of seeks from the parent.
+  useEffect(() => {
+    iframeRef.current?.contentWindow?.postMessage({ type: "hf-seek", t: Math.round(seekMs) }, "*");
+  }, [seekMs, html]);
+
   const aspectClass =
     aspectRatio === "9:16"
       ? "aspect-[9/16] max-h-full"
@@ -57,6 +64,12 @@ export function PreviewPlayer({
             title="Live preview"
             sandbox="allow-scripts"
             className="h-full w-full"
+            onLoad={() =>
+              iframeRef.current?.contentWindow?.postMessage(
+                { type: "hf-seek", t: Math.round(seekMs) },
+                "*",
+              )
+            }
           />
         </div>
       </div>

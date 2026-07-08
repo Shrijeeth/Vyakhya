@@ -78,7 +78,31 @@ function themeCss(width: number, height: number): string {
   .hf-caption{position:absolute;left:0;right:0;bottom:6%;text-align:center;font-size:${Math.round(width / 56)}px;padding:0 8%}
   .hf-caption-minimal{color:var(--hf-fg)}
   .hf-caption-bold{color:#fff;font-weight:700;text-shadow:0 2px 12px rgba(0,0,0,.6)}
-  .hf-unknown{color:#b00}`;
+  .hf-unknown{color:#b00}
+  /* Entrance animations. The preview runtime freezes them per frame (seekable);
+     opened directly in a browser they simply play once. */
+  @keyframes hf-rise{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:none}}
+  @keyframes hf-in{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
+  @keyframes hf-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+  @keyframes hf-pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+  .hf-stage{animation:hf-rise .6s both ease-out}
+  .hf-bullet{animation:hf-in .5s both ease-out}
+  .hf-bar-fill{transform-origin:left center;animation:hf-grow .7s both ease-out}
+  .hf-token{animation:hf-pop .4s both ease-out}
+  .hf-kinetic-word{animation:hf-pop .5s both ease-out}`;
+}
+
+// Injected into preview docs: pause the entrance animations (the runtime sets a
+// negative animation-delay per element to render the frame at the seeked time)
+// and show the active scene / freeze its animations on each hf-seek message.
+function previewRuntime(): string {
+  return `<style>.hf-stage,.hf-bullet,.hf-bar-fill,.hf-token,.hf-kinetic-word{animation-play-state:paused}</style>
+<script>(function(){var scenes=[].slice.call(document.querySelectorAll('.hf-scene'));
+function stag(l,step,L){for(var i=0;i<l.length;i++){l[i].style.animationDelay=(i*step-L)+'ms';}}
+function one(el,L){if(el)el.style.animationDelay=(-L)+'ms';}
+function seek(t){var shown=false;for(var i=0;i<scenes.length;i++){var sc=scenes[i],s=+sc.getAttribute('data-start')||0,d=+sc.getAttribute('data-duration')||0,a=(t>=s&&t<s+d);sc.style.display=a?'flex':'none';if(a){shown=true;var L=t-s;one(sc.querySelector('.hf-stage'),L);one(sc.querySelector('.hf-kinetic-word'),L);stag(sc.querySelectorAll('.hf-bullet'),120,L);stag(sc.querySelectorAll('.hf-token'),60,L);stag(sc.querySelectorAll('.hf-bar-fill'),150,L);}}
+if(!shown&&scenes.length){scenes[scenes.length-1].style.display='flex';}}
+addEventListener('message',function(e){var m=e.data;if(m&&m.type==='hf-seek')seek(m.t|0);});seek(0);})();</script>`;
 }
 
 /**
@@ -112,12 +136,14 @@ ${scenes}
   if (options.fragment) return composition;
 
   // Preview-only: center + scale the fixed-pixel composition to fit the iframe.
-  const fitCss = options.fit
+  const doFit = options.fit || options.preview;
+  const fitCss = doFit
     ? `html,body{height:100%}body{display:grid;place-items:center;overflow:hidden}`
     : "";
-  const fitScript = options.fit
+  const fitScript = doFit
     ? `<script>(function(){var c=document.querySelector('.hf-composition');if(!c)return;function f(){var s=Math.min(innerWidth/${width},innerHeight/${height});c.style.transform='scale('+s+')';c.style.transformOrigin='center center';}addEventListener('resize',f);f();})();</script>`
     : "";
+  const runtime = options.preview ? previewRuntime() : "";
 
   return `<!doctype html>
 <html lang="en">
@@ -130,6 +156,7 @@ ${scenes}
 <body>
 ${composition}
 ${fitScript}
+${runtime}
 </body>
 </html>`;
 }

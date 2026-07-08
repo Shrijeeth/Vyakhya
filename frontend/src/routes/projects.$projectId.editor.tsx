@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { Download } from "lucide-react";
-import { compileScenePreview, getEditorProject } from "@/services/api";
+import { compileProjectPreview, getEditorProject } from "@/services/api";
 import { useEditorStore } from "@/store/editor-store";
 import { Button } from "@/components/ui/button";
 import { SceneList } from "@/components/editor/scene-list";
@@ -18,9 +18,7 @@ function EditorPage() {
   const navigate = useNavigate();
   const setProject = useEditorStore((s) => s.setProject);
   const project = useEditorStore((s) => s.project);
-  const scene = useEditorStore(
-    (s) => s.project?.scenes.find((sc) => sc.id === s.selectedSceneId) ?? null,
-  );
+  const selectedSceneId = useEditorStore((s) => s.selectedSceneId);
   const currentTime = useEditorStore((s) => s.currentTimeMs);
   const playing = useEditorStore((s) => s.playing);
   const setCurrentTime = useEditorStore((s) => s.setCurrentTime);
@@ -39,17 +37,20 @@ function EditorPage() {
     if (data) setProject(data);
   }, [data, setProject]);
 
-  const [previewHtml, setPreviewHtml] = useState<string>("");
+  // The whole project compiles to one seekable composition; the scrubber drives
+  // which scene shows + animates. Recompiled only when the scenes change.
+  const previewHtml = useMemo(() => (project ? compileProjectPreview(project) : ""), [project]);
+
+  // Selecting a scene jumps the playhead to its start so the preview follows.
   useEffect(() => {
-    if (!scene) return;
-    let cancelled = false;
-    compileScenePreview(scene).then((html) => {
-      if (!cancelled) setPreviewHtml(html);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [scene]);
+    if (!project || !selectedSceneId) return;
+    let start = 0;
+    for (const sc of project.scenes) {
+      if (sc.id === selectedSceneId) break;
+      start += typeof sc.durationMs === "number" ? sc.durationMs : 6000;
+    }
+    setCurrentTime(start);
+  }, [selectedSceneId, project, setCurrentTime]);
 
   // fake playback tick
   useEffect(() => {

@@ -83,4 +83,10 @@ export interface CompileOptions {
    * (and center it) so it's visible in a small iframe. Not for the render path.
    */
   fit?: boolean;
+  /**
+   * Preview-only: implies `fit`, and injects a seekable runtime that shows the
+   * active scene and freezes entrance animations at the current frame. Drive it
+   * by postMessage: `{ type: "hf-seek", t }` (ms). Not for the render path.
+   */
+  preview?: boolean;
 }
