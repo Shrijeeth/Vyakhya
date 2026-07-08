@@ -143,12 +143,16 @@ export function getAgentSequence() {
   return AGENT_SEQUENCE;
 }
 
-// Subscribe to the pipeline SSE stream. Returns an unsubscribe function.
+// Subscribe to the pipeline SSE stream. Idempotent server-side: attaches to an
+// in-flight run (with replay) instead of starting a new one; `restart` forces a
+// fresh run when the latest one has finished. Returns an unsubscribe function.
 export function subscribePipeline(
   projectId: string,
   onEvent: (event: PipelineEvent) => void,
+  opts?: { restart?: boolean },
 ): () => void {
-  return streamSSE(`/projects/${projectId}/pipeline/stream`, { method: "GET" }, (e) =>
+  const qs = opts?.restart ? "?restart=true" : "";
+  return streamSSE(`/projects/${projectId}/pipeline/stream${qs}`, { method: "GET" }, (e) =>
     onEvent(e as PipelineEvent),
   );
 }

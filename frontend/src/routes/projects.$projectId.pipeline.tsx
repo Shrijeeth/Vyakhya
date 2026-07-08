@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ReactFlow, Background, Controls, Handle, Position } from "@xyflow/react";
 import type { Edge, Node, NodeProps } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -85,7 +85,11 @@ function PipelinePage() {
   const [progress, setProgress] = useState(0);
   const [selected, setSelected] = useState<AgentId | null>(null);
   const [flags, setFlags] = useState<VerifierFlag[]>([]);
+  const [scenes, setScenes] = useState<unknown[]>([]);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [runKey, setRunKey] = useState(0); // bumped by "Regenerate" → restart stream
+  const restartRef = useRef(false); // true only for the subscribe right after "Regenerate"
 
   useEffect(() => {
     // tick elapsed for running agents
@@ -98,29 +102,58 @@ function PipelinePage() {
   }, []);
 
   useEffect(() => {
-    const unsub = subscribePipeline(projectId, (evt) => {
-      if (evt.type === "status" && evt.agentId) {
-        setAgents((prev) =>
-          prev.map((a) =>
-            a.id === evt.agentId ? { ...a, status: evt.payload as AgentStatus } : a,
-          ),
-        );
-      } else if (evt.type === "log" && evt.agentId) {
-        setAgents((prev) =>
-          prev.map((a) =>
-            a.id === evt.agentId ? { ...a, logs: [...a.logs, String(evt.payload)] } : a,
-          ),
-        );
-      } else if (evt.type === "flag") {
-        setFlags((prev) => [...prev, evt.payload as VerifierFlag]);
-      } else if (evt.type === "progress") {
-        setProgress(Number(evt.payload) * 100);
-      } else if (evt.type === "done") {
-        setDone(true);
-      }
-    });
+    // Fresh slate per project / per run — no stale agents when switching projects.
+    setAgents(
+      sequence.map((a) => ({ ...a, status: "queued" as AgentStatus, elapsedMs: 0, logs: [] })),
+    );
+    setProgress(0);
+    setFlags([]);
+    setScenes([]);
+    setDone(false);
+    setError(null);
+    const unsub = subscribePipeline(
+      projectId,
+      (evt) => {
+        if (evt.type === "status" && evt.agentId) {
+          setAgents((prev) =>
+            prev.map((a) =>
+              a.id === evt.agentId ? { ...a, status: evt.payload as AgentStatus } : a,
+            ),
+          );
+        } else if (evt.type === "log" && evt.agentId) {
+          setAgents((prev) =>
+            prev.map((a) =>
+              a.id === evt.agentId ? { ...a, logs: [...a.logs, String(evt.payload)] } : a,
+            ),
+          );
+        } else if (evt.type === "flag") {
+          const flag = evt.payload as VerifierFlag;
+          // Dedupe on id — replay/reconnect can redeliver the same flag.
+          setFlags((prev) => (prev.some((f) => f.id === flag.id) ? prev : [...prev, flag]));
+        } else if (evt.type === "scenes") {
+          setScenes(Array.isArray(evt.payload) ? evt.payload : []);
+        } else if (evt.type === "progress") {
+          setProgress(Number(evt.payload) * 100);
+        } else if (evt.type === "error") {
+          setError(String(evt.payload ?? "Pipeline failed"));
+          // Anything still running/queued when the run dies is errored out.
+          setAgents((prev) =>
+            prev.map((a) => (a.status === "running" ? { ...a, status: "error" } : a)),
+          );
+        } else if (evt.type === "done") {
+          setDone(true);
+        }
+      },
+      { restart: restartRef.current },
+    );
+    restartRef.current = false; // consumed — a project switch must not restart
     return unsub;
-  }, [projectId]);
+  }, [projectId, runKey, sequence]);
+
+  const regenerate = () => {
+    restartRef.current = true;
+    setRunKey((k) => k + 1);
+  };
 
   const nodes: Node<AgentNode>[] = agents.map((a, i) => ({
     id: a.id,
@@ -148,13 +181,26 @@ function PipelinePage() {
               Live view of the agent crew turning the paper into an editable video.
             </p>
           </div>
-          <Button
-            disabled={!done}
-            onClick={() => navigate({ to: "/projects/$projectId/editor", params: { projectId } })}
-          >
-            Open in editor
-          </Button>
+          <div className="flex items-center gap-2">
+            {(done || error) && (
+              <Button variant="outline" onClick={regenerate}>
+                Regenerate
+              </Button>
+            )}
+            <Button
+              disabled={!done || !!error}
+              onClick={() => navigate({ to: "/projects/$projectId/editor", params: { projectId } })}
+            >
+              Open in editor
+            </Button>
+          </div>
         </div>
+        {error && (
+          <div className="mt-3 flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>Pipeline failed: {error}</span>
+          </div>
+        )}
         <div className="mt-4 flex items-center gap-3">
           <Progress value={progress} className="h-1.5 flex-1" />
           <span className="text-xs tabular-nums text-muted-foreground">
@@ -215,13 +261,23 @@ function PipelinePage() {
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <pre className="mt-2 max-h-72 overflow-auto rounded-md border border-border bg-muted/40 p-3 font-mono text-[11px] leading-relaxed text-foreground/80">
-                        {active.status === "done"
+                        {active.id === "verifier" && flags.length > 0
                           ? JSON.stringify(
-                              { agent: active.id, ok: true, itemsProduced: 12 },
+                              {
+                                claimsChecked: flags.length,
+                                pass: flags.filter((f) => f.level === "pass").length,
+                                warn: flags.filter((f) => f.level === "warn").length,
+                                fail: flags.filter((f) => f.level === "fail").length,
+                              },
                               null,
                               2,
                             )
-                          : "// available when the agent completes"}
+                          : (active.id === "visual_designer" || active.id === "assembler") &&
+                              scenes.length > 0
+                            ? JSON.stringify(scenes, null, 2)
+                            : active.status === "done"
+                              ? JSON.stringify({ agent: active.id, ok: true }, null, 2)
+                              : "// available when the agent completes"}
                       </pre>
                     </CollapsibleContent>
                   </Collapsible>

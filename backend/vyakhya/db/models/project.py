@@ -28,6 +28,9 @@ class Project(Base):
     title: Mapped[str] = mapped_column(Text, nullable=False)
     source_paper: Mapped[str] = mapped_column(Text, nullable=False)
     paper_file_url: Mapped[str | None] = mapped_column(Text)
+    # Text extracted from the uploaded PDF at creation time — what the agent
+    # pipeline actually reads (no object storage round-trip needed).
+    paper_text: Mapped[str | None] = mapped_column(Text)
     thumbnail_url: Mapped[str | None] = mapped_column(Text)
     status: Mapped[ProjectStatus] = mapped_column(
         pg_enum(ProjectStatus, "project_status"),

@@ -74,7 +74,13 @@ services:
       dockerfile: Dockerfile
       args:
         INSTALL_AGENTS: ${INSTALL_AGENTS:-0}
-    command: ["procrastinate", "worker"]
+    # Apply the procrastinate schema (idempotent), then run the worker.
+    command:
+      [
+        "sh",
+        "-c",
+        "(procrastinate --app=vyakhya.worker.app schema --apply || echo 'schema already applied') && exec procrastinate --app=vyakhya.worker.app worker",
+      ]
     env_file: .env
     depends_on:
       postgres:

@@ -40,6 +40,17 @@ def sse_response(topic: str) -> StreamingResponse:
     return StreamingResponse(_iter(topic), media_type="text/event-stream", headers=_HEADERS)
 
 
+def sse_events_response(events: AsyncIterator[dict[str, Any]]) -> StreamingResponse:
+    """Stream an async iterator of wire events (e.g. the DB-polled pipeline
+    event log) as SSE frames."""
+
+    async def gen() -> AsyncIterator[str]:
+        async for event in events:
+            yield _frame(event)
+
+    return StreamingResponse(gen(), media_type="text/event-stream", headers=_HEADERS)
+
+
 def sse_response_with_producer(topic: str, launch) -> StreamingResponse:
     """Register the subscriber, launch the producer, then stream — guaranteeing
     no early events are dropped.

@@ -13,7 +13,10 @@ dependencies = [
     "asyncpg>=0.30.0",
     "alembic>=1.14.0",
     "procrastinate>=3.0.0",
+    # procrastinate's CLI/worker uses psycopg; [binary] bundles libpq for slim images.
+    "psycopg[binary]>=3.2.0",
     "cryptography>=44.0.0",
+    "boto3>=1.35.0",
     "python-multipart>=0.0.20",
     "httpx>=0.28.0",
 ]
