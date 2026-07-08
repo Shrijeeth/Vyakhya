@@ -57,6 +57,66 @@ _SAMPLE_FLAGS = [
 ]
 
 
+# Sample scenes the assembler "produces" for the simulated run — a short
+# Transformer-paper explainer that exercises several visual types so the editor
+# and preview have real content end-to-end. Params match the @vyakhya/compiler
+# renderer shapes. The real Agno crew replaces this with Scene-JSON output.
+_SAMPLE_SCENES: list[dict[str, Any]] = [
+    {
+        "visualType": "title.card",
+        "narration": "Attention Is All You Need — a look at the Transformer architecture.",
+        "params": {"title": "The Transformer", "subtitle": "Attention Is All You Need"},
+        "durationMs": 5000,
+        "citations": [{"label": "Title", "sourceSpan": "p. 1"}],
+    },
+    {
+        "visualType": "bullet.reveal",
+        "narration": "It drops recurrence entirely and relies on self-attention.",
+        "params": {
+            "bullets": [
+                "No recurrence or convolution",
+                "Self-attention over the whole sequence",
+                "Highly parallelizable training",
+            ]
+        },
+        "durationMs": 7000,
+        "citations": [{"label": "Abstract", "sourceSpan": "§1, p. 2"}],
+    },
+    {
+        "visualType": "equation.build",
+        "narration": "Scaled dot-product attention weights values by query-key similarity.",
+        "params": {
+            "latex": (
+                r"\mathrm{Attention}(Q,K,V)="
+                r"\mathrm{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V"
+            )
+        },
+        "durationMs": 8000,
+        "citations": [{"label": "Eq. 1", "sourceSpan": "§3.2.1, p. 4"}],
+    },
+    {
+        "visualType": "diagram.attention",
+        "narration": "Each token attends to every other token in the sequence.",
+        "params": {"tokens": ["The", "cat", "sat", "on", "the", "mat"]},
+        "durationMs": 6000,
+        "citations": [{"label": "Fig. 2", "sourceSpan": "§3.2, p. 4"}],
+    },
+    {
+        "visualType": "dataviz.bar",
+        "narration": "It set a new state of the art on WMT 2014 translation.",
+        "params": {
+            "series": [
+                {"label": "ByteNet", "value": 23.75},
+                {"label": "GNMT", "value": 24.6},
+                {"label": "Transformer", "value": 28.4},
+            ]
+        },
+        "durationMs": 7000,
+        "citations": [{"label": "Table 2", "sourceSpan": "§6.1, p. 8"}],
+    },
+]
+
+
 class PipelineExecutor(Protocol):
     def run(self, project_id: str) -> AsyncIterator[dict]:  # pragma: no cover - interface
         ...
@@ -82,4 +142,7 @@ class SimulatedPipelineExecutor:
             if agent is AgentId.VERIFIER:
                 for flag in _SAMPLE_FLAGS:
                     yield _event(PipelineEventType.FLAG, {**flag, "id": new_id("vf")})
+            if agent is AgentId.ASSEMBLER:
+                # The assembler emits the final Scene-JSON; the service persists it.
+                yield _event(PipelineEventType.SCENES, _SAMPLE_SCENES, agent)
         yield _event(PipelineEventType.DONE, None)

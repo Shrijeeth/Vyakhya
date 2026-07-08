@@ -48,7 +48,7 @@ export interface VerifierFlag {
 }
 
 export interface PipelineEvent {
-  type: "status" | "log" | "flag" | "progress" | "done";
+  type: "status" | "log" | "flag" | "scenes" | "progress" | "done";
   agentId?: AgentId;
   payload: unknown;
 }

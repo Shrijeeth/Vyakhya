@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import asyncio
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from vyakhya.agents.pipeline import AGENT_SEQUENCE, SimulatedPipelineExecutor
@@ -14,8 +14,16 @@ from vyakhya.core.database import get_sessionmaker
 from vyakhya.core.events import broker
 from vyakhya.core.logging import get_logger
 from vyakhya.db.models.pipeline import AgentNodeState, PipelineEvent, PipelineRun, VerifierFlag
-from vyakhya.db.models.project import Project
-from vyakhya.enums import AgentStatus, PipelineEventType, ProjectStatus, VerifierLevel
+from vyakhya.db.models.project import Project, Scene, SceneCitation
+from vyakhya.enums import (
+    AgentStatus,
+    CaptionStyle,
+    PipelineEventType,
+    ProjectStatus,
+    SceneTransition,
+    VerifierLevel,
+    VisualType,
+)
 from vyakhya.schemas.pipeline import AgentSequenceItem
 from vyakhya.utils import new_id, utcnow
 
@@ -136,3 +144,42 @@ async def _persist_event(session: AsyncSession, run_id: str, project_id: str, ev
                 note=payload.get("note"),
             )
         )
+    elif etype == PipelineEventType.SCENES.value and isinstance(payload, list):
+        await _persist_scenes(session, project_id, payload)
+
+
+async def _persist_scenes(session: AsyncSession, project_id: str, scenes: list[dict]) -> None:
+    """Replace the project's scenes with the assembler's output (idempotent re-run)."""
+    await session.execute(delete(Scene).where(Scene.project_id == project_id))
+    total_ms = 0
+    for pos, s in enumerate(scenes):
+        duration = s.get("durationMs")
+        if isinstance(duration, int):
+            total_ms += duration
+        scene = Scene(
+            id=new_id("s"),
+            project_id=project_id,
+            position=pos,
+            narration=s.get("narration", ""),
+            visual_type=VisualType(s["visualType"]),
+            params=s.get("params", {}),
+            caption_style=CaptionStyle(s.get("captionStyle", CaptionStyle.MINIMAL.value)),
+            transition=SceneTransition(s.get("transition", SceneTransition.FADE.value)),
+            duration_ms=duration if isinstance(duration, int) else None,
+        )
+        for cpos, c in enumerate(s.get("citations", [])):
+            scene.citations.append(
+                SceneCitation(
+                    id=new_id("c"),
+                    label=c["label"],
+                    source_span=c["sourceSpan"],
+                    position=cpos,
+                )
+            )
+        session.add(scene)
+    project = await session.get(Project, project_id)
+    if project is not None:
+        project.duration_ms = total_ms
+    log.info(
+        "scenes persisted project=%s count=%d duration_ms=%d", project_id, len(scenes), total_ms
+    )

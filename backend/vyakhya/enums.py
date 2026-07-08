@@ -147,5 +147,6 @@ class PipelineEventType(StrEnum):
     STATUS = "status"
     LOG = "log"
     FLAG = "flag"
+    SCENES = "scenes"
     PROGRESS = "progress"
     DONE = "done"

@@ -36,6 +36,19 @@ async def test_simulated_executor_emits_status_flags_and_done():
     assert progress[-1] == 1.0
 
 
+async def test_simulated_executor_emits_scenes():
+    executor = SimulatedPipelineExecutor(step_seconds=0.0, log_seconds=0.0)
+    events = [e async for e in executor.run("p1")]
+    scene_events = [e for e in events if e["type"] == PipelineEventType.SCENES.value]
+    assert len(scene_events) == 1
+    scenes = scene_events[0]["payload"]
+    assert isinstance(scenes, list) and len(scenes) >= 1
+    for s in scenes:
+        assert VisualType(s["visualType"])  # known visual type
+        assert isinstance(s["params"], dict)
+    assert events[-1]["type"] == PipelineEventType.DONE.value
+
+
 def test_compile_scene_preview_escapes_and_includes_type():
     scene = SceneIn(
         id="s1",
