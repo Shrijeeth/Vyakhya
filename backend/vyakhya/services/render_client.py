@@ -46,6 +46,19 @@ async def build_scene_document(project_id: str) -> dict[str, Any] | None:
         }
 
 
+async def capture_scene_screenshots(doc: dict[str, Any]) -> list[dict[str, Any]]:
+    """Per-scene PNG screenshots from the render service (base64 in 'png').
+    Raises on any failure — callers degrade to a text-only design review."""
+    settings = get_settings()
+    url = f"{settings.render_service_url}/screenshot"
+    headers = {"X-API-Key": settings.render_api_key} if settings.render_api_key else {}
+    async with httpx.AsyncClient(timeout=180.0) as client:
+        resp = await client.post(url, json={"doc": doc}, headers=headers)
+        resp.raise_for_status()
+        shots = resp.json().get("shots")
+        return shots if isinstance(shots, list) else []
+
+
 async def stream_render_service(
     doc: dict[str, Any], settings_dict: dict[str, Any]
 ) -> AsyncIterator[dict[str, Any]]:

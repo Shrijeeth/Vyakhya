@@ -244,7 +244,6 @@ function RenderSettingsPage() {
             </div>
           </CollapsibleContent>
         </Collapsible>
-
       </div>
     </div>
   );

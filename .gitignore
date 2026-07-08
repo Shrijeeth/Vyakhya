@@ -37,3 +37,4 @@ venv/
 .idea/
 .vscode/
 *.log
+.agents/

@@ -40,6 +40,21 @@ export function buildServer(config: RenderConfig = loadConfig()): FastifyInstanc
     return runHyperframeLint(html);
   });
 
+  // Per-scene PNGs for the pipeline's vision design reviewer. Heavy-ish
+  // (launches Chromium) but far cheaper than a render; errors return 500 and
+  // the caller degrades to a text-only review.
+  app.post<{ Body: { doc: SceneDocument } }>("/screenshot", async (req, reply) => {
+    const { doc } = req.body ?? {};
+    if (!doc) return reply.code(400).send({ error: "missing doc" });
+    try {
+      const { captureScenes } = await import("./screenshot.js");
+      const shots = await captureScenes(doc, config);
+      return { shots };
+    } catch (err) {
+      return reply.code(500).send({ error: (err as Error).message });
+    }
+  });
+
   app.post<{ Body: RenderBody }>("/render", async (req, reply) => {
     const { doc, settings } = req.body ?? {};
     if (!doc || !settings) return reply.code(400).send({ error: "missing doc or settings" });

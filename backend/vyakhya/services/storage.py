@@ -38,8 +38,9 @@ def _ensure_bucket_sync(bucket: str) -> None:
     except Exception:  # noqa: BLE001 - missing bucket (404) or fresh MinIO
         client.create_bucket(Bucket=bucket)
         log.info("created bucket %s", bucket)
-    # Anonymous read for figures/ so scene <img> URLs are stable (no presign
-    # expiry) — they're embedded in compositions and rendered headlessly.
+    # Anonymous read for figures/ + audio/ so scene <img>/<audio> URLs are
+    # stable (no presign expiry) — they're embedded in compositions and
+    # rendered headlessly.
     import json
 
     policy = {
@@ -49,7 +50,10 @@ def _ensure_bucket_sync(bucket: str) -> None:
                 "Effect": "Allow",
                 "Principal": {"AWS": ["*"]},
                 "Action": ["s3:GetObject"],
-                "Resource": [f"arn:aws:s3:::{bucket}/figures/*"],
+                "Resource": [
+                    f"arn:aws:s3:::{bucket}/figures/*",
+                    f"arn:aws:s3:::{bucket}/audio/*",
+                ],
             }
         ],
     }
@@ -83,6 +87,23 @@ async def put_figure(project_id: str, index: int, data: bytes) -> str:
     def _put() -> None:
         _ensure_bucket_sync(bucket)
         _client().put_object(Bucket=bucket, Key=key, Body=data, ContentType="image/png")
+
+    await asyncio.to_thread(_put)
+    return f"{settings.s3_public_endpoint}/{bucket}/{key}"
+
+
+async def put_audio(project_id: str, index: int, data: bytes, ext: str = "mp3") -> str:
+    """Store a narration clip; returns its stable browser-reachable URL
+    (audio/ has anonymous read via the bucket policy)."""
+    settings = get_settings()
+    bucket = settings.s3_bucket
+    key = f"audio/{project_id}/scene{index}.{ext}"
+
+    content_type = "audio/mpeg" if ext == "mp3" else f"audio/{ext}"
+
+    def _put() -> None:
+        _ensure_bucket_sync(bucket)
+        _client().put_object(Bucket=bucket, Key=key, Body=data, ContentType=content_type)
 
     await asyncio.to_thread(_put)
     return f"{settings.s3_public_endpoint}/{bucket}/{key}"

@@ -19,6 +19,8 @@ dependencies = [
     "boto3>=1.35.0",
     "python-multipart>=0.0.20",
     "httpx>=0.28.0",
+    # MP3 duration probing for narration clips (services.tts).
+    "mutagen>=1.47.0",
 ]
 
 [project.optional-dependencies]

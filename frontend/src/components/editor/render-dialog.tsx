@@ -1,12 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Loader2, Play, AlertTriangle, ExternalLink } from "lucide-react";
-import {
-  getRenderSettings,
-  listRenders,
-  startRender,
-  subscribeRenderJob,
-} from "@/services/api";
+import { getRenderSettings, listRenders, startRender, subscribeRenderJob } from "@/services/api";
 import type { RenderJob, RenderSettings } from "@/services/types";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -123,7 +118,9 @@ export function RenderDialog({ projectId }: { projectId: string }) {
             <div className="space-y-1">
               <Label className="text-xs">Quality</Label>
               <Select
-                value={settings.quality >= 80 ? "high" : settings.quality >= 40 ? "standard" : "draft"}
+                value={
+                  settings.quality >= 80 ? "high" : settings.quality >= 40 ? "standard" : "draft"
+                }
                 onValueChange={(v) =>
                   setOverrides((o) => ({
                     ...o,

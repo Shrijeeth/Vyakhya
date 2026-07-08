@@ -85,7 +85,8 @@ function themeCss(width: number, height: number): string {
   .hf-bullets{list-style:none;padding:0;margin:0;text-align:left;font-size:${Math.round(width / 48)}px;line-height:1.6}
   .hf-bullet{margin:.2em 0}
   .hf-bullet::before{content:"›";color:var(--hf-accent);margin-right:.5em}
-  .hf-figure{margin:0}
+  .hf-figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:.6em;max-width:100%}
+  audio.clip{display:none}
   .hf-figbox{border:2px dashed var(--hf-accent);border-radius:12px;padding:2em 3em;color:var(--hf-accent);font-size:${Math.round(width / 40)}px}
   .hf-figcap{margin-top:.6em;color:var(--hf-muted);font-size:${Math.round(width / 64)}px}
   .hf-equation code{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:${Math.round(width / 44)}px}
@@ -141,9 +142,13 @@ function themeCss(width: number, height: number): string {
 function previewRuntime(): string {
   return `<style>*{animation-play-state:paused !important}</style>
 <script>(function(){var scenes=[].slice.call(document.querySelectorAll('.hf-scene'));
+var audios=[].slice.call(document.querySelectorAll('audio.clip'));var playing=false;
+function syncAudio(t){for(var i=0;i<audios.length;i++){var a=audios[i],s=1000*(parseFloat(a.getAttribute('data-start'))||0),d=1000*(parseFloat(a.getAttribute('data-duration'))||0),act=playing&&t>=s&&t<s+d;
+if(act){var off=(t-s)/1000;if(Math.abs(a.currentTime-off)>0.3){try{a.currentTime=off;}catch(_){}}
+if(a.paused){var p=a.play();if(p&&p.catch)p.catch(function(){});}}else if(!a.paused){a.pause();}}}
 function seek(t){var shown=false;for(var i=0;i<scenes.length;i++){var sc=scenes[i],s=1000*(parseFloat(sc.getAttribute('data-start'))||0),d=1000*(parseFloat(sc.getAttribute('data-duration'))||0),a=(t>=s&&t<s+d);sc.style.display=a?'flex':'none';if(a){shown=true;sc.style.setProperty('--t0',(s-t)+'ms');}}
-if(!shown&&scenes.length){scenes[scenes.length-1].style.display='flex';}}
-addEventListener('message',function(e){var m=e.data;if(m&&m.type==='hf-seek')seek(m.t|0);});seek(0);})();</script>`;
+if(!shown&&scenes.length){scenes[scenes.length-1].style.display='flex';}syncAudio(t);}
+addEventListener('message',function(e){var m=e.data;if(!m)return;if(m.type==='hf-seek'){if(typeof m.playing==='boolean')playing=m.playing;seek(m.t|0);}});seek(0);})();</script>`;
 }
 
 /**
@@ -160,10 +165,20 @@ export function compile(doc: SceneDocument, options: CompileOptions = {}): strin
   const { width, height } = dimensions(doc.aspectRatio);
 
   let cursor = 0;
+  const audioClips: string[] = [];
   const scenes = doc.scenes
     .map((scene, index) => {
       const duration = resolveDurationMs(scene, autoMs);
       const html = renderScene(scene, index, cursor, duration);
+      // Narration audio rides a separate track (10) as its own clip, windowed
+      // to the scene, per the HyperFrames audio-clip contract.
+      const audioUrl = scene.params?.audioUrl;
+      if (typeof audioUrl === "string" && audioUrl) {
+        audioClips.push(
+          `<audio class="clip" id="audio-${index}" src="${esc(audioUrl)}" preload="auto"
+    data-start="${sec(cursor)}" data-duration="${sec(duration)}" data-track-index="10"></audio>`,
+        );
+      }
       cursor += duration;
       return html;
     })
@@ -174,6 +189,7 @@ export function compile(doc: SceneDocument, options: CompileOptions = {}): strin
     data-duration="${sec(total)}" data-width="${width}" data-height="${height}"
     data-aspect="${esc(doc.aspectRatio)}" data-project="${esc(doc.id)}">
 ${scenes}
+${audioClips.join("\n")}
   </div>`;
 
   if (options.fragment) return composition;

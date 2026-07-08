@@ -82,6 +82,10 @@ class GenSceneParams(BaseModel):
     # custom.html — agent-authored stage markup + styles (no scripts).
     html: str | None = None
     css: str | None = None
+    # Narration audio, attached by the pipeline (never by the model): the
+    # compiler turns audioUrl into an <audio class="clip"> on track 10.
+    audio_url: str | None = Field(default=None, alias="audioUrl")
+    audio_duration_ms: int | None = Field(default=None, alias="audioDurationMs")
 
 
 class GenScene(BaseModel):
@@ -125,53 +129,91 @@ class VerifierReport(BaseModel):
     revision_notes: str = Field(default="", alias="revisionNotes")
 
 
+# ── Visual design review (vision: per-scene screenshots) ──────────────────────
+class DesignIssue(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    scene_index: int = Field(alias="sceneIndex")
+    problem: str
+    fix: str
+    severity: Literal["minor", "major"] = "major"
+
+
+class DesignReviewReport(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    approved: bool
+    issues: list[DesignIssue] = Field(default_factory=list)
+
+
+_DESIGN_REVIEWER_INSTRUCTIONS = [
+    "You are the art director reviewing RENDERED SCREENSHOTS of an explainer "
+    "video's scenes (one image per scene, in order). Judge what you SEE.",
+    "REJECT a scene (severity major) when: elements overlap illegibly (text on "
+    "top of images or other text), content is clipped/offscreen, the frame is "
+    "empty or near-empty, text is tiny/unstyled, contrast is poor, the default "
+    "cream background shows instead of the project's theme, or the scene is an "
+    "incomplete visualization (a bare sentence with no visual structure).",
+    "Also flag (minor) blandness and doctrine violations: plain centered text "
+    "where a richer composition (diagram, split layout, big-number, figure "
+    "panel) fits, full narration sentences printed on screen instead of short "
+    "motion-graphics copy, the same framing repeated in adjacent scenes, a "
+    "primary visual owning well under 40% of the canvas, or generic "
+    "purple-blue AI-gradient styling.",
+    "For each issue give the scene index (0-based, matching image order), what "
+    "is wrong VISUALLY, and a concrete CSS/layout fix the designer can apply.",
+    "Set approved=true ONLY when there are no major issues.",
+]
+
 _DESIGNER_INSTRUCTIONS = [
-    "You are the visual designer for Vyakhya, which turns research papers into "
-    "editable explainer videos rendered by HyperFrames. You are a motion designer, "
-    "not a slide-deck generator: every project should have its own art direction.",
-    "FIRST read the HyperFrames skills — call get_skill_instructions for "
-    "'hyperframes-core' and 'faceless-explainer', and consult "
-    "'hyperframes-animation' ideas (staggered reveals, kinetic typography, "
-    "multi-phase scenes, 3D transforms) — then design scenes that USE those "
-    "techniques rather than defaulting to plain lists.",
-    "Two ways to author a scene:",
-    "1) BUILT-IN visuals (fast, guaranteed layouts): "
-    "title.card {title, subtitle}; bullet.reveal {bullets}; "
-    "figure.callout {caption, figureRef, figureId}; equation.build {latex}; "
-    "dataviz.bar {series: [{label, value}]}; diagram.attention {tokens}; "
-    "comparison.split {left, right}; kinetic.type {text}; orbit.3d {tokens} "
-    "(a rotating 3D ring of concepts). params keys MUST match the visualType "
-    "exactly or the frame renders BLANK.",
-    "2) CUSTOM scenes (your creativity): visualType custom.html with params "
-    "{html, css}. You write the stage markup and styles yourself — bold "
-    "typography, layered layouts, CSS 3D (perspective/rotate3d), gradients, "
-    "SVG diagrams, animated counters via keyframes. Use custom.html for the "
-    "hero moments (opener, the paper's core idea, the closer) and whenever a "
-    "built-in would flatten the idea. Rules for custom scenes: "
-    "(a) NO <script>, no external assets except the provided figure URLs; "
-    "(b) the scene MUST be fully self-styled: every class you reference must be "
-    "defined in the css param (or use inline style= attributes) — unstyled "
-    "classes render as tiny plain text; prefix classes with a unique slug per "
-    "scene (e.g. .att1-…); "
-    "(c) all animations must be FINITE with fill-mode both, and every "
-    "animation-delay MUST be written as calc(var(--t0, 0s) + <offset>) so the "
-    "scene is seekable; (d) design for the full frame (the stage is centered "
-    "in a 1920x1080 canvas by default).",
-    "When a list of extracted figures is provided, USE THEM: figure.callout with "
-    "figureId set to one of the given ids (never invent ids), or an <img> with the "
-    "figure's URL inside a custom.html scene.",
-    "Direct the motion: vary transitions (cut for rhythm, slide/wipe for section "
-    "changes, fade sparingly), alternate dense visuals with breathing room, and "
-    "sequence related scenes so ideas build (setup → evidence → payoff). Avoid "
-    "using the same visual type twice in a row.",
-    "Every scene needs at least one citation grounding it to a source span in the "
-    "paper (e.g. '§3.2, p. 4').",
+    "You are the visual designer for Vyakhya: it turns ANY document (paper, "
+    "report, article, spec, book chapter…) into an explainer video rendered "
+    "by HyperFrames. You are a motion designer, not a slide-deck generator — "
+    "every project gets its own art direction.",
+    "First read the HyperFrames skills (get_skill_instructions for "
+    "'hyperframes-core', 'faceless-explainer', 'hyperframes-animation', "
+    "'hyperframes-creative') and design with those techniques.",
+    "Every scene MUST be visualType custom.html with params {html, css} — you "
+    "author the full frame yourself. Other visual types are fallbacks only; "
+    "do not emit them.",
+    "Theme: before any scene, pick a palette, type scale and background "
+    "treatment from the document's topic and the user's brief. Every scene "
+    "gets a full-frame themed background (layered gradients, drifting shapes, "
+    "glows — slow, finite animation). One coherent film; vary each scene's "
+    "layout (hero type, split, diagram, big number, figure spotlight…).",
+    "Layout rules (a reviewer SEES rendered screenshots and rejects "
+    "violations): nothing overlaps — use flexbox/grid with gaps, never text "
+    "absolutely-positioned over images or text (use a solid panel if text "
+    "must sit on imagery); every scene is a complete composition (headline + "
+    "supporting visual), never a bare sentence or empty frame; keep ~6% "
+    "padding, images max-height ~60% of frame; big legible text (headlines "
+    "≥64px, body ≥30px at 1920x1080) with strong contrast.",
+    "Custom scene contract: no <script>; no external assets except the given "
+    "figure URLs; fully self-styled (every class defined in css or inline, "
+    "slug-prefixed per scene); all animations finite with fill-mode both; "
+    "every animation-delay written as calc(var(--t0, 0s) + <offset>) so the "
+    "scene is seekable; root element fills the frame.",
+    "Motion: smooth long-tail eases (ease-out / cubic-bezier(.22,1,.36,1)); "
+    "never bounce/elastic. Reveal elements sequentially across the scene's "
+    "duration — don't front-load, don't exit mid-scene, no infinite loops or "
+    "breathing/pulsing.",
+    "On-screen text is short motion-graphics copy (hero word, term, stat — "
+    "≤6-word headlines, ≤4 support items); the full explanation lives in "
+    "narration, paced ~2.6–3 words/second — size durationMs to it.",
+    "Use the provided extracted figures via their exact URLs (<img> in its "
+    "own panel, caption below or beside — never across it). Never invent "
+    "URLs.",
+    "Story: don't paraphrase the document in order — open with a hook, build "
+    "3–6 core ideas (setup → evidence → payoff), land a takeaway. Pick 2–3 "
+    "transitions for the whole video and repeat them (scene 1 = cut).",
+    "Every scene needs at least one citation pointing at a real span of the "
+    "document (e.g. '§3.2, p. 4').",
 ]
 
 _RESEARCHER_INSTRUCTIONS = [
-    "You are the comprehension researcher for Vyakhya. Given a paper's title and "
-    "abstract, use your web tools (search, Wikipedia) to gather context that helps "
-    "explain the paper to the target audience: prior work it builds on, real-world "
+    "You are the comprehension researcher for Vyakhya. Given a document's title "
+    "and opening, use your web tools (search, Wikipedia) to gather context that "
+    "helps explain it to the target audience: background it builds on, real-world "
     "impact, common misconceptions, and simple analogies.",
     "Be fast: at most 3-4 tool calls. Return concise, factual notes — no filler.",
 ]
@@ -204,13 +246,13 @@ def _research_tools() -> list[Any]:
 
 
 _VERIFIER_INSTRUCTIONS = [
-    "You are the verifier for Vyakhya. You receive the paper text and the designed "
-    "scenes (JSON). Check every factual claim in the scenes' narration and on-screen "
-    "text against the paper.",
+    "You are the verifier for Vyakhya. You receive the source document's text and "
+    "the designed scenes (JSON). Check every factual claim in the scenes' narration "
+    "and on-screen text against the document.",
     "Report one flag per checked claim: level 'pass' when grounded, 'warn' when "
     "plausible but not clearly supported, 'fail' when contradicted or invented. "
-    "sourceSpan is where in the paper you checked (e.g. '§3.2, p. 4').",
-    "Also fail scenes whose citations don't point at real content in the paper.",
+    "sourceSpan is where in the document you checked (e.g. '§3.2, p. 4').",
+    "Also fail scenes whose citations don't point at real content in the document.",
     "Set approved=true ONLY when there are no 'fail' flags. When not approved, put "
     "concrete, actionable fixes in revisionNotes (which scene, what to change).",
 ]
@@ -412,6 +454,32 @@ def _dump_scenes(doc: GenDocument, figure_map: dict[str, str] | None = None) -> 
     return [s.model_dump(by_alias=True, exclude_none=True) for s in doc.scenes]
 
 
+def _screenshot_doc(project_id: str, title: str, aspect: str, scenes_payload: list[dict]) -> dict:
+    """Scene-JSON the render service can compile for review screenshots."""
+    return {
+        "id": project_id,
+        "title": title,
+        "aspectRatio": aspect,
+        "scenes": [{"id": f"rev{i}", "index": i, **s} for i, s in enumerate(scenes_payload)],
+    }
+
+
+async def _review_images(shot_doc: dict) -> list[Any]:
+    """Screenshots of every scene as Agno images for the vision reviewer."""
+    import base64
+
+    from agno.media import Image as AgnoImage
+
+    from vyakhya.services.render_client import capture_scene_screenshots
+
+    shots = await capture_scene_screenshots(shot_doc)
+    return [
+        AgnoImage(content=base64.b64decode(s["png"]), format="png")
+        for s in shots
+        if isinstance(s.get("png"), str)
+    ]
+
+
 def _scenes_json(doc: GenDocument) -> str:
     import json
 
@@ -436,6 +504,7 @@ class AgnoPipelineExecutor:
             language = project.language
             target_min = project.target_length_min or 3
             tts_enabled = project.tts_enabled
+            aspect = project.aspect_ratio.value
             user_prompt = (project.user_prompt or "").strip()
             figures: list[dict] = list(project.figures or [])
             paper_file_url = project.paper_file_url
@@ -479,6 +548,13 @@ class AgnoPipelineExecutor:
             instructions=_VERIFIER_INSTRUCTIONS,
             # No tools → provider-native structured output directly.
             output_schema=VerifierReport,
+            markdown=False,
+        )
+        design_reviewer = Agent(
+            name="Design Reviewer",
+            model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url),
+            instructions=_DESIGN_REVIEWER_INSTRUCTIONS,
+            output_schema=DesignReviewReport,
             markdown=False,
         )
         researcher = Agent(
@@ -535,8 +611,8 @@ class AgnoPipelineExecutor:
                 try:
                     rres = await researcher.arun(
                         input=(
-                            f"Research context for explaining this paper.\n"
-                            f"Title: {title}\n\nOpening of the paper:\n{paper_text[:3000]}"
+                            f"Research context for explaining this document.\n"
+                            f"Title: {title}\n\nOpening of the document:\n{paper_text[:3000]}"
                         ),
                         stream=False,
                     )
@@ -568,25 +644,24 @@ class AgnoPipelineExecutor:
                         for f in figures
                     )
                     figures_block = (
-                        f"\n\nFigures cropped from the paper (use figure.callout with "
+                        f"\n\nFigures cropped from the document (embed via <img> with "
                         f"figureId):\n{lines}"
                     )
                 research_block = ""
                 if research is not None and (research.summary or research.key_points):
                     notes = "\n".join(f"- {p}" for p in research.key_points)
                     analogies = "\n".join(f"- {a}" for a in research.analogies)
-                    research_block = (
-                        f"\n\nWeb research context:\n{research.summary}\n{notes}"
-                        + (f"\nAnalogies you may use:\n{analogies}" if analogies else "")
+                    research_block = f"\n\nWeb research context:\n{research.summary}\n{notes}" + (
+                        f"\nAnalogies you may use:\n{analogies}" if analogies else ""
                     )
                 user_block = (
                     f"\n\nUSER GUIDANCE (must be honored):\n{user_prompt}" if user_prompt else ""
                 )
                 prompt = (
-                    f"Design the explainer scenes for this paper.\n"
+                    f"Design the explainer scenes for this document.\n"
                     f"Title: {title}\nAudience: {AudienceLevel(audience).value}\n"
                     f"Language: {language}{user_block}{figures_block}{research_block}\n\n"
-                    f"Paper text:\n{paper_text}"
+                    f"Document text:\n{paper_text}"
                 )
                 last_error = "model returned no parseable scenes"
                 for attempt in range(2):
@@ -630,8 +705,8 @@ class AgnoPipelineExecutor:
                     try:
                         vres = await verifier.arun(
                             input=(
-                                f"Verify these scenes against the paper.\n\n"
-                                f"Scenes:\n{_scenes_json(doc)}\n\nPaper text:\n{paper_text}"
+                                f"Verify these scenes against the document.\n\n"
+                                f"Scenes:\n{_scenes_json(doc)}\n\nDocument text:\n{paper_text}"
                             ),
                             stream=False,
                         )
@@ -690,7 +765,7 @@ class AgnoPipelineExecutor:
                         f"Flagged claims:\n{fail_lines}\n\n"
                         f"Current scenes:\n{_scenes_json(doc)}\n\n"
                         f"Fix ONLY what the verifier flagged (keep everything else), "
-                        f"grounding every claim in the paper.\n\nPaper text:\n{paper_text}"
+                        f"grounding every claim in the document.\n\nDocument text:\n{paper_text}"
                     )
                     try:
                         rres = await designer.arun(input=revision_prompt, stream=False)
@@ -713,6 +788,145 @@ class AgnoPipelineExecutor:
                             agent_id,
                         )
 
+            if agent_id is AgentId.NARRATOR:
+                yield _event(
+                    PipelineEventType.LOG,
+                    f"[{label}] "
+                    + (
+                        "narration audio will be synthesized once the cut is final (assembler)"
+                        if tts_enabled
+                        else "TTS is off for this project — no narration audio"
+                    ),
+                    agent_id,
+                )
+
+            if agent_id is AgentId.VERIFIER and doc is not None:
+                # Design review with EYES: the render service screenshots every
+                # scene and a vision reviewer judges the actual frames —
+                # overlapping/clipped/empty/incomplete scenes go back to the
+                # designer with concrete CSS fixes.
+                for vround in range(1, 3):
+                    scenes_payload = _dump_scenes(doc, figure_map)
+                    try:
+                        images = await _review_images(
+                            _screenshot_doc(project_id, title, aspect, scenes_payload)
+                        )
+                    except Exception as exc:  # noqa: BLE001 - degrade, don't block
+                        log.warning("scene screenshots unavailable: %s", exc)
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] visual review skipped (screenshots unavailable)",
+                            agent_id,
+                        )
+                        break
+                    if not images:
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] visual review skipped (no screenshots)",
+                            agent_id,
+                        )
+                        break
+                    yield _event(
+                        PipelineEventType.LOG,
+                        f"[{label}] visual round {vround}: reviewing {len(images)} "
+                        f"scene screenshot(s)…",
+                        agent_id,
+                    )
+                    dreport: DesignReviewReport | None = None
+                    try:
+                        scene_lines = "\n".join(
+                            f"{i}: {s.get('visualType')} — {(s.get('narration') or '')[:70]}"
+                            for i, s in enumerate(scenes_payload)
+                        )
+                        dres = await design_reviewer.arun(
+                            input=(
+                                "Review these rendered scene screenshots (images are "
+                                "in scene order, 0-based).\n\nScenes:\n" + scene_lines
+                            ),
+                            images=images,
+                            stream=False,
+                        )
+                        content = dres.content if dres else None
+                        if isinstance(content, DesignReviewReport):
+                            dreport = content
+                        else:
+                            data = _extract_data(content)
+                            if isinstance(data, dict):
+                                dreport = DesignReviewReport.model_validate(data)
+                    except Exception as exc:  # noqa: BLE001 - review is best-effort
+                        log.warning("design review round %d failed: %s", vround, exc)
+                    if dreport is None:
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] visual reviewer unavailable — proceeding",
+                            agent_id,
+                        )
+                        break
+                    majors = [i for i in dreport.issues if i.severity == "major"]
+                    for issue in dreport.issues:
+                        payload = {
+                            "id": new_id("vf"),
+                            "claim": f"scene {issue.scene_index}: {issue.problem}",
+                            "sourceSpan": f"scene {issue.scene_index} (visual)",
+                            "level": "fail" if issue.severity == "major" else "warn",
+                            "note": issue.fix,
+                        }
+                        yield _event(PipelineEventType.FLAG, payload, agent_id)
+                    yield _event(
+                        PipelineEventType.LOG,
+                        f"[{label}] visual round {vround}: {len(dreport.issues)} issue(s), "
+                        f"{len(majors)} major",
+                        agent_id,
+                    )
+                    if dreport.approved and not majors:
+                        yield _event(
+                            PipelineEventType.LOG, f"[{label}] visual design approved", agent_id
+                        )
+                        break
+                    if vround == 2:
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] visual review rounds exhausted — proceeding with "
+                            f"{len(majors)} unresolved issue(s)",
+                            agent_id,
+                        )
+                        break
+                    issue_lines = "\n".join(
+                        f"- scene {i.scene_index} [{i.severity}]: {i.problem} → FIX: {i.fix}"
+                        for i in dreport.issues
+                    )
+                    visual_prompt = (
+                        "The art director reviewed SCREENSHOTS of your rendered scenes "
+                        "and rejected the cut. Fix EXACTLY the flagged scenes' html/css "
+                        "(layout, overlap, sizing, backgrounds) and keep everything else "
+                        "unchanged. Remember: full-frame themed backgrounds, no "
+                        "overlapping text/images, complete visual compositions.\n\n"
+                        f"Issues:\n{issue_lines}\n\n"
+                        f"Current scenes:\n{_scenes_json(doc)}\n\n"
+                        "Return the FULL revised scene list."
+                    )
+                    try:
+                        vres2 = await designer.arun(input=visual_prompt, stream=False)
+                        revised = _coerce_document(vres2.content if vres2 else None)
+                    except Exception as exc:  # noqa: BLE001 - keep current doc
+                        log.warning("visual revision failed: %s", exc)
+                        revised = None
+                    if revised is not None and revised.scenes:
+                        doc = revised
+                        scenes_payload = _dump_scenes(doc, figure_map)
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] designer fixed visuals → {len(doc.scenes)} scenes",
+                            agent_id,
+                        )
+                    else:
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] visual revision produced no valid scenes — keeping cut",
+                            agent_id,
+                        )
+                        break
+
             if agent_id is AgentId.ASSEMBLER and doc is not None:
                 # Agentic length fit: when the cut misses the requested length,
                 # the DESIGNER fixes it — adding grounded scenes when short,
@@ -730,7 +944,7 @@ class AgnoPipelineExecutor:
                         )
                         break
                     direction = (
-                        "too SHORT — add new scenes covering more of the paper "
+                        "too SHORT — add new scenes covering more of the document "
                         "(each grounded with citations), or deepen existing ones"
                         if total_ms < target_ms
                         else "too LONG — merge or drop the least important scenes"
@@ -746,7 +960,7 @@ class AgnoPipelineExecutor:
                         f"about {target_ms} ms. It is {direction}. Keep every verified "
                         f"scene's content intact where possible and return the FULL "
                         f"revised scene list.\n\nCurrent scenes:\n{_scenes_json(doc)}\n\n"
-                        f"Paper text:\n{paper_text}"
+                        f"Document text:\n{paper_text}"
                     )
                     try:
                         fres = await designer.arun(input=fit_prompt, stream=False)
@@ -769,6 +983,60 @@ class AgnoPipelineExecutor:
                         f"{sum(s.duration_ms for s in doc.scenes) / 1000:.0f}s",
                         agent_id,
                     )
+
+                # Narration audio (TTS) — synthesized against the FINAL cut so
+                # revisions can't orphan clips. Scene durations stretch to fit
+                # their narration; clips land on params.audioUrl, which the
+                # compiler turns into <audio class="clip"> elements.
+                if tts_enabled:
+                    try:
+                        from vyakhya.services.tts import narrate_scene, resolve_tts_connection
+
+                        async with sm() as session:
+                            tts = await resolve_tts_connection(session)
+                        if tts is None:
+                            yield _event(
+                                PipelineEventType.LOG,
+                                f"[{label}] TTS is on but no TTS connection is configured "
+                                "— add one in Model Config; skipping narration audio",
+                                agent_id,
+                            )
+                        else:
+                            tconn, tkey = tts
+                            yield _event(
+                                PipelineEventType.LOG,
+                                f"[{label}] synthesizing narration via {tconn.provider} "
+                                f"({tconn.model})…",
+                                agent_id,
+                            )
+                            voiced = 0
+                            for i, s in enumerate(doc.scenes):
+                                text = (s.narration or "").strip()
+                                if not text:
+                                    continue
+                                try:
+                                    url, ms = await narrate_scene(project_id, i, text, tconn, tkey)
+                                except Exception as exc:  # noqa: BLE001 - per-scene
+                                    log.warning("TTS failed for scene %d: %s", i, exc)
+                                    continue
+                                s.params.audio_url = url
+                                s.params.audio_duration_ms = ms
+                                if ms and s.duration_ms < ms + 300:
+                                    s.duration_ms = min(ms + 500, 60_000)
+                                voiced += 1
+                            scenes_payload = _dump_scenes(doc, figure_map)
+                            yield _event(
+                                PipelineEventType.LOG,
+                                f"[{label}] narration audio attached to {voiced} scene(s)",
+                                agent_id,
+                            )
+                    except Exception as exc:  # noqa: BLE001 - audio is an enhancement
+                        log.warning("narration synthesis failed: %s", exc)
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] narration synthesis skipped: {exc}",
+                            agent_id,
+                        )
 
             yield _event(PipelineEventType.STATUS, AgentStatus.DONE.value, agent_id)
             yield _event(PipelineEventType.PROGRESS, round((idx + 1) / total, 3))

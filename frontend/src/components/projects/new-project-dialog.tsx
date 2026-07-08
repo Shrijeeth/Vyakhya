@@ -104,7 +104,7 @@ export function NewProjectDialog({
         <DialogHeader>
           <DialogTitle>New video</DialogTitle>
           <DialogDescription>
-            Upload a paper. The agent crew drafts an editable explainer video from it.
+            Upload any document. The agent crew drafts an editable explainer video from it.
           </DialogDescription>
         </DialogHeader>
 
@@ -131,7 +131,7 @@ export function NewProjectDialog({
               <UploadCloud className="h-8 w-8 text-muted-foreground" />
               <div className="text-sm font-medium">Drop PDF here or click to upload</div>
               <div className="text-xs text-muted-foreground">
-                Single research paper, up to ~50 pages works best
+                Any PDF — paper, report, article — up to ~50 pages works best
               </div>
               <input
                 type="file"

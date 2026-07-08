@@ -42,12 +42,20 @@ export function PreviewPlayer({
   // Drive the seekable runtime inside the iframe: post the current time on every
   // scrub/tick. The composition is a pure function of t (active scene + frozen
   // entrance animations), so playback is just a stream of seeks from the parent.
+  // `playing` rides along so the runtime starts/stops narration audio clips.
   useEffect(() => {
-    iframeRef.current?.contentWindow?.postMessage({ type: "hf-seek", t: Math.round(seekMs) }, "*");
-  }, [seekMs, html]);
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: "hf-seek", t: Math.round(seekMs), playing },
+      "*",
+    );
+  }, [seekMs, html, playing]);
 
   const aspectClass =
-    aspectRatio === "9:16" ? "aspect-[9/16]" : aspectRatio === "1:1" ? "aspect-square" : "aspect-video";
+    aspectRatio === "9:16"
+      ? "aspect-[9/16]"
+      : aspectRatio === "1:1"
+        ? "aspect-square"
+        : "aspect-video";
 
   return (
     <div className="flex h-full flex-col">
@@ -61,10 +69,11 @@ export function PreviewPlayer({
             ref={iframeRef}
             title="Live preview"
             sandbox="allow-scripts"
+            allow="autoplay"
             className="h-full w-full"
             onLoad={() =>
               iframeRef.current?.contentWindow?.postMessage(
-                { type: "hf-seek", t: Math.round(seekMs) },
+                { type: "hf-seek", t: Math.round(seekMs), playing },
                 "*",
               )
             }
