@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from vyakhya.core.security import mask_secret
 from vyakhya.db.models.config import AgentModelAssignment, ProviderConnection
-from vyakhya.enums import AgentRole, ConnectionStatus
+from vyakhya.enums import AgentRole, ConnectionStatus, provider_kind
 from vyakhya.schemas.config import ConnectionCreate
 from vyakhya.services.crypto import get_encryptor
 from vyakhya.utils import new_id, utcnow
@@ -32,10 +32,12 @@ async def create_connection(session: AsyncSession, payload: ConnectionCreate) ->
     conn = ProviderConnection(
         id=new_id("c"),
         provider=payload.provider,
+        kind=provider_kind(payload.provider),  # derived, never trusted from client
         model=payload.model,
         api_key_enc=enc,
         api_key_masked=masked,
         base_url=payload.base_url,
+        settings=payload.settings or {},
         status=ConnectionStatus.UNKNOWN,
     )
     session.add(conn)

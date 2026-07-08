@@ -45,7 +45,8 @@ CREATE TYPE visual_type      AS ENUM (
 CREATE TYPE caption_style    AS ENUM ('none', 'minimal', 'bold');
 CREATE TYPE scene_transition AS ENUM ('cut', 'fade', 'slide', 'wipe');
 
-CREATE TYPE provider_id      AS ENUM ('openai', 'anthropic', 'elevenlabs', 'ollama', 'gemini', 'groq');
+-- LLM providers (agents) + TTS providers (narrator). Keyless: 'ollama', 'hyperframes'.
+CREATE TYPE provider_id      AS ENUM ('openai', 'anthropic', 'gemini', 'groq', 'ollama', 'hyperframes', 'elevenlabs', 'deepgram');
 CREATE TYPE connection_status AS ENUM ('unknown', 'ok', 'error');
 
 CREATE TYPE verifier_level   AS ENUM ('pass', 'warn', 'fail');
@@ -220,7 +221,8 @@ CREATE TABLE provider_connections (
   id             text PRIMARY KEY,
   provider       provider_id NOT NULL,
   model          text NOT NULL,
-  api_key_enc    bytea,                        -- encrypted secret (NULL for keyless, e.g. ollama)
+  model          text NOT NULL,                -- LLM model id, or TTS voice/model (e.g. eleven_v3, aura-2-thalia-en)
+  api_key_enc    bytea,                        -- encrypted secret (NULL for keyless: ollama, hyperframes)
   api_key_masked text NOT NULL DEFAULT '—',    -- safe to return to the UI
   base_url       text,                         -- self-hosted / ollama endpoint
   status         connection_status NOT NULL DEFAULT 'unknown',

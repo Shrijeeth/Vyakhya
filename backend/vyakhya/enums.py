@@ -80,13 +80,36 @@ class SceneTransition(StrEnum):
     WIPE = "wipe"
 
 
+class ProviderKind(StrEnum):
+    """A connection is either an LLM (agents) or a TTS (narrator) provider."""
+
+    LLM = "llm"
+    TTS = "tts"
+
+
 class ProviderId(StrEnum):
+    # LLM providers (agent reasoning + vision).
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
-    ELEVENLABS = "elevenlabs"
-    OLLAMA = "ollama"
     GEMINI = "gemini"
     GROQ = "groq"
+    OLLAMA = "ollama"  # keyless (local)
+    # TTS providers (narration).
+    HYPERFRAMES = "hyperframes"  # keyless (built-in)
+    ELEVENLABS = "elevenlabs"
+    DEEPGRAM = "deepgram"
+
+
+# The kind is a property of the provider — a single provider_connections table
+# stores both; `kind` is persisted (denormalized) for cheap filtering + a DB
+# CHECK that the narrator role only binds a TTS connection.
+_TTS_PROVIDERS = frozenset({ProviderId.HYPERFRAMES, ProviderId.ELEVENLABS, ProviderId.DEEPGRAM})
+# Keyless providers run locally / built-in and need no API key.
+KEYLESS_PROVIDERS = frozenset({ProviderId.OLLAMA, ProviderId.HYPERFRAMES})
+
+
+def provider_kind(provider: ProviderId) -> ProviderKind:
+    return ProviderKind.TTS if provider in _TTS_PROVIDERS else ProviderKind.LLM
 
 
 class ConnectionStatus(StrEnum):

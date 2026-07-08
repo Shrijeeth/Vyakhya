@@ -6,17 +6,19 @@ from datetime import datetime
 
 from pydantic import Field
 
-from vyakhya.enums import AgentId, AgentRole, ConnectionStatus, ProviderId
+from vyakhya.enums import AgentId, AgentRole, ConnectionStatus, ProviderId, ProviderKind
 from vyakhya.schemas.common import CamelModel
 
 
 class ProviderConnectionOut(CamelModel):
     id: str
     provider: ProviderId
+    kind: ProviderKind  # derived from provider (llm | tts)
     model: str
     api_key_masked: str
     base_url: str | None = None
     status: ConnectionStatus
+    settings: dict = Field(default_factory=dict)
     last_tested_at: datetime | None = None
 
 
@@ -25,6 +27,9 @@ class ConnectionCreate(CamelModel):
     model: str
     api_key: str = ""
     base_url: str | None = None
+    # Kind-specific tuning (LLM: temperature…; TTS: stability/speed…). `kind`
+    # itself is derived from `provider` server-side — never trusted from client.
+    settings: dict = Field(default_factory=dict)
 
 
 class AgentModelAssignmentOut(CamelModel):

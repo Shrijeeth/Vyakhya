@@ -106,11 +106,26 @@ def upgrade() -> None:
         sa.Column(
             "provider",
             sa.Enum(
-                "openai", "anthropic", "elevenlabs", "ollama", "gemini", "groq", name="provider_id"
+                "openai",
+                "anthropic",
+                "gemini",
+                "groq",
+                "ollama",
+                "hyperframes",
+                "elevenlabs",
+                "deepgram",
+                name="provider_id",
             ),
             nullable=False,
         ),
+        sa.Column("kind", sa.Enum("llm", "tts", name="provider_kind"), nullable=False),
         sa.Column("model", sa.Text(), nullable=False),
+        sa.Column(
+            "settings",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=sa.text("'{}'::jsonb"),
+            nullable=False,
+        ),
         sa.Column("api_key_enc", sa.LargeBinary(), nullable=True),
         sa.Column("api_key_masked", sa.Text(), nullable=False),
         sa.Column("base_url", sa.Text(), nullable=True),

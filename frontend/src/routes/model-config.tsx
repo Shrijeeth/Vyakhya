@@ -20,14 +20,16 @@ import {
   testConnection,
   updateAssignment,
 } from "@/services/api";
-import type { ProviderConnection, ProviderId } from "@/services/types";
+import type { ProviderConnection, ProviderId, ProviderKind } from "@/services/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -45,18 +47,79 @@ export const Route = createFileRoute("/model-config")({
   component: ModelConfigPage,
 });
 
-const PROVIDERS: { id: ProviderId; label: string; models: string[] }[] = [
-  { id: "openai", label: "OpenAI", models: ["gpt-4o", "gpt-4o-mini", "o1-preview"] },
+// Curated model lists (current as of 2026-07). `keyless` providers run locally
+// or built-in and need no API key. LLM providers drive the reasoning/vision
+// agents; TTS providers drive the narrator. Users can still edit a connection's
+// model string if they need one not listed.
+type ProviderMeta = {
+  id: ProviderId;
+  label: string;
+  kind: ProviderKind;
+  keyless?: boolean;
+  models: string[];
+};
+
+const PROVIDERS: ProviderMeta[] = [
+  // ── LLM — agent reasoning + vision ──────────────────────────────────────
+  { id: "openai", label: "OpenAI", kind: "llm", models: ["gpt-5.5", "gpt-5.4", "o3", "o4-mini"] },
   {
     id: "anthropic",
     label: "Anthropic",
-    models: ["claude-3.5-sonnet", "claude-3.5-haiku", "claude-3-opus"],
+    kind: "llm",
+    models: ["claude-fable-5", "claude-opus-4-8", "claude-sonnet-5", "claude-haiku-4-5"],
   },
-  { id: "gemini", label: "Google Gemini", models: ["gemini-2.0-flash", "gemini-1.5-pro"] },
-  { id: "groq", label: "Groq", models: ["llama-3.1-70b", "mixtral-8x7b"] },
-  { id: "elevenlabs", label: "ElevenLabs", models: ["eleven_multilingual_v2", "eleven_turbo_v2"] },
-  { id: "ollama", label: "Ollama (local)", models: ["llama3.1:70b", "qwen2.5:32b", "mistral"] },
+  {
+    id: "gemini",
+    label: "Google Gemini",
+    kind: "llm",
+    models: ["gemini-3.5-flash", "gemini-3.1-pro", "gemini-3.1-flash-lite"],
+  },
+  {
+    id: "groq",
+    label: "Groq",
+    kind: "llm",
+    models: [
+      "llama-3.3-70b-versatile",
+      "openai/gpt-oss-120b",
+      "openai/gpt-oss-20b",
+      "moonshotai/kimi-k2-instruct",
+      "deepseek-r1-distill-llama-70b",
+    ],
+  },
+  {
+    id: "ollama",
+    label: "Ollama (local)",
+    kind: "llm",
+    keyless: true,
+    models: ["qwen3:30b", "qwen3-coder:30b", "deepseek-r1:32b", "gemma3:27b", "gpt-oss:20b"],
+  },
+  // ── TTS — narration ─────────────────────────────────────────────────────
+  {
+    id: "hyperframes",
+    label: "HyperFrames (built-in)",
+    kind: "tts",
+    keyless: true,
+    models: ["builtin"],
+  },
+  {
+    id: "elevenlabs",
+    label: "ElevenLabs",
+    kind: "tts",
+    models: ["eleven_v3", "eleven_multilingual_v2", "eleven_flash_v2_5", "eleven_turbo_v2_5"],
+  },
+  {
+    id: "deepgram",
+    label: "Deepgram",
+    kind: "tts",
+    models: ["aura-2-thalia-en", "aura-2-helena-en", "aura-2-orion-en", "aura-asteria-en"],
+  },
 ];
+
+const LLM_PROVIDERS = PROVIDERS.filter((p) => p.kind === "llm");
+const TTS_PROVIDERS = PROVIDERS.filter((p) => p.kind === "tts");
+const PROVIDER_KIND: Record<ProviderId, ProviderKind> = Object.fromEntries(
+  PROVIDERS.map((p) => [p.id, p.kind]),
+) as Record<ProviderId, ProviderKind>;
 
 const ROLES: {
   id: "comprehension" | "planner" | "scriptwriter" | "visual_designer" | "narrator" | "verifier";
@@ -100,7 +163,7 @@ function StatusPill({ status }: { status: ProviderConnection["status"] }) {
 
 function AddConnectionForm({ onDone }: { onDone: () => void }) {
   const [provider, setProvider] = useState<ProviderId>("openai");
-  const [model, setModel] = useState("gpt-4o");
+  const [model, setModel] = useState(LLM_PROVIDERS[0].models[0]);
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const qc = useQueryClient();
@@ -118,7 +181,9 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
       onDone();
     },
   });
-  const providerModels = PROVIDERS.find((p) => p.id === provider)?.models ?? [];
+  const providerMeta = PROVIDERS.find((p) => p.id === provider);
+  const providerModels = providerMeta?.models ?? [];
+  const keyless = providerMeta?.keyless ?? false;
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="mb-3 text-sm font-semibold">Add connection</div>
@@ -137,16 +202,27 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PROVIDERS.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.label}
-                </SelectItem>
-              ))}
+              <SelectGroup>
+                <SelectLabel>LLM (agents)</SelectLabel>
+                {LLM_PROVIDERS.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+              <SelectGroup>
+                <SelectLabel>TTS (narration)</SelectLabel>
+                {TTS_PROVIDERS.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
-          <Label>Model</Label>
+          <Label>{providerMeta?.kind === "tts" ? "Voice / model" : "Model"}</Label>
           <Select value={model} onValueChange={setModel}>
             <SelectTrigger>
               <SelectValue />
@@ -160,25 +236,36 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1">
-          <Label>API key</Label>
-          <Input
-            type="password"
-            placeholder="sk-…"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label>
-            Base URL <span className="text-muted-foreground">(optional)</span>
-          </Label>
-          <Input
-            placeholder="https://api.example.com"
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-          />
-        </div>
+        {!keyless && (
+          <>
+            <div className="space-y-1">
+              <Label>API key</Label>
+              <Input
+                type="password"
+                placeholder="sk-…"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>
+                Base URL <span className="text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                placeholder="https://api.example.com"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+              />
+            </div>
+          </>
+        )}
+        {keyless && (
+          <div className="col-span-2 self-end text-xs text-muted-foreground">
+            {provider === "ollama"
+              ? "Local provider — no API key needed. Set Base URL via OLLAMA_HOST if not default."
+              : "Built-in provider — no API key needed."}
+          </div>
+        )}
       </div>
       <div className="mt-3 flex justify-end gap-2">
         <Button variant="ghost" onClick={onDone}>
@@ -332,6 +419,10 @@ function ModelConfigPage() {
           <TableBody>
             {ROLES.map((r) => {
               const a = assignments.find((x) => x.role === r.id);
+              // The narrator is voiced by a TTS provider; every other agent is
+              // driven by an LLM. Only offer connections of the matching kind.
+              const roleKind: ProviderKind = r.id === "narrator" ? "tts" : "llm";
+              const eligible = connections.filter((c) => PROVIDER_KIND[c.provider] === roleKind);
               return (
                 <TableRow key={r.id}>
                   <TableCell>
@@ -350,7 +441,7 @@ function ModelConfigPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">— unassigned —</SelectItem>
-                        {connections.map((c) => (
+                        {eligible.map((c) => (
                           <SelectItem key={c.id} value={c.id}>
                             {c.provider} · {c.model}
                           </SelectItem>

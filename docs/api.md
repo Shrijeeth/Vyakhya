@@ -36,7 +36,8 @@ header can be sent — `EventSource` cannot set headers). Each event is one
 | `AgentStatus` | `queued` \| `running` \| `done` \| `error` |
 | `AgentRole` | `comprehension` \| `planner` \| `scriptwriter` \| `visual_designer` \| `narrator` \| `verifier` |
 | `VisualType` | `title.card` \| `bullet.reveal` \| `figure.callout` \| `equation.build` \| `dataviz.bar` \| `diagram.attention` \| `comparison.split` \| `kinetic.type` |
-| `ProviderId` | `openai` \| `anthropic` \| `elevenlabs` \| `ollama` \| `gemini` \| `groq` |
+| `ProviderId` | LLM: `openai` \| `anthropic` \| `gemini` \| `groq` \| `ollama` — TTS: `hyperframes` \| `elevenlabs` \| `deepgram` |
+| `ProviderKind` | `llm` (agents) \| `tts` (narrator) |
 | `VerifierFlag.level` | `pass` \| `warn` \| `fail` |
 | `Scene.captionStyle` | `none` \| `minimal` \| `bold` |
 | `Scene.transition` | `cut` \| `fade` \| `slide` \| `wipe` |
@@ -184,7 +185,13 @@ production). Body: `Scene`. → `{ "html": "<!doctype html>…" }` (or `text/htm
 
 ## Model configuration
 
-Provider connections + per-agent-role model assignments.
+Provider connections + per-agent-role model assignments. Providers are one of two
+**kinds**: **LLM** providers (`openai`, `anthropic`, `gemini`, `groq`, `ollama`)
+drive the reasoning/vision agents; **TTS** providers (`hyperframes`, `elevenlabs`,
+`deepgram`) drive the narrator. The `narrator` role only accepts a TTS connection;
+every other role only accepts an LLM connection. Keyless providers (`ollama`,
+`hyperframes`) omit `apiKey` — `api_key_enc` is stored `NULL`. For TTS providers
+the `model` field carries the voice/model id (e.g. `eleven_v3`, `aura-2-thalia-en`).
 
 ### `GET /api/connections` → `ProviderConnection[]`
 

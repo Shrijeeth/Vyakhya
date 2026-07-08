@@ -89,15 +89,21 @@ export interface EditorProject {
   aspectRatio: AspectRatio;
 }
 
-export type ProviderId = "openai" | "anthropic" | "elevenlabs" | "ollama" | "gemini" | "groq";
+// LLM providers (agent reasoning + vision) and TTS providers (narration).
+export type ProviderId =
+  "openai" | "anthropic" | "gemini" | "groq" | "ollama" | "hyperframes" | "elevenlabs" | "deepgram";
+
+export type ProviderKind = "llm" | "tts";
 
 export interface ProviderConnection {
   id: string;
   provider: ProviderId;
+  kind: ProviderKind; // derived from provider (llm | tts)
   model: string;
   apiKeyMasked: string;
   baseUrl?: string;
   status: "unknown" | "ok" | "error";
+  settings?: Record<string, unknown>; // kind-specific tuning
   lastTestedAt?: string;
 }
 

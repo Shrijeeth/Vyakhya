@@ -42,5 +42,4 @@ Bun.serve({
   },
 });
 
-// eslint-disable-next-line no-console
 console.log(`web listening on :${PORT}`);

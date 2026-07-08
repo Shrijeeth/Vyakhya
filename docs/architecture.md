@@ -112,8 +112,8 @@ HyperFrames already ships a `SKILL.md`, so it drops in. **But where it loads mat
 Provider keys are entered in the FE; the **encryption key is env-only** (set by the setup wizard, §4b). **No passphrase in the UI at all.**
 
 ### Model Configuration UI
-- Add a **provider connection**: pick **provider** (OpenAI / Anthropic / ElevenLabs / local Ollama…), pick **model**, paste **API key**, optional base URL.
-- Assign providers/models **per agent role** (e.g. comprehension → a strong model, captions → a cheap one) — surfaces the model-agnostic Agno layer.
+- Add a **provider connection**: pick **provider**, **model/voice**, paste **API key** (keyless for local/built-in), optional base URL. Two kinds — **LLM** (agents): OpenAI, Anthropic, Google Gemini, Groq, local Ollama (keyless); **TTS** (narrator): HyperFrames built-in (keyless), ElevenLabs, Deepgram.
+- Assign connections **per agent role** — the **narrator** role only accepts a **TTS** connection; every other role only accepts an **LLM** connection.
 - Test-connection button; mask keys in UI (`sk-...abcd`); rotate/revoke.
 - The UI **never** handles the encryption key — only provider keys.
 

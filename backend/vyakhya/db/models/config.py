@@ -13,7 +13,7 @@ from sqlalchemy.types import DateTime
 
 from vyakhya.core.database import Base
 from vyakhya.db.types import pg_enum
-from vyakhya.enums import AgentId, AgentRole, ConnectionStatus, ProviderId
+from vyakhya.enums import AgentId, AgentRole, ConnectionStatus, ProviderId, ProviderKind
 
 
 class ProviderConnection(Base):
@@ -21,7 +21,13 @@ class ProviderConnection(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     provider: Mapped[ProviderId] = mapped_column(pg_enum(ProviderId, "provider_id"), nullable=False)
+    # Denormalized from provider (llm vs tts) so we can filter + constrain by kind.
+    kind: Mapped[ProviderKind] = mapped_column(
+        pg_enum(ProviderKind, "provider_kind"), nullable=False
+    )
     model: Mapped[str] = mapped_column(Text, nullable=False)
+    # Kind-specific tuning (LLM: temperature/max_tokens; TTS: stability/speed…).
+    settings: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     # Encrypted secret (nonce||ciphertext); NULL for keyless providers (e.g. ollama).
     api_key_enc: Mapped[bytes | None] = mapped_column(LargeBinary)
     api_key_masked: Mapped[str] = mapped_column(Text, nullable=False, default="—")
