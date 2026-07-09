@@ -961,7 +961,7 @@ class AgnoPipelineExecutor:
                         )
                         batch: GenDocument | None = None
                         batch_err = ""
-                        for attempt in range(2):
+                        for attempt in range(3):
                             # One batch is one long NON-STREAMED model call
                             # (minutes on slow endpoints) — heartbeat events so
                             # the stream shows life, not a stuck stage.
@@ -982,7 +982,7 @@ class AgnoPipelineExecutor:
                                 )
                             try:
                                 batch = dtask.result()
-                            except Exception as exc:  # noqa: BLE001 - retry once
+                            except Exception as exc:  # noqa: BLE001 - retry with backoff
                                 batch_err = str(exc)
                                 log.warning(
                                     "designer batch %d attempt %d failed: %s",
@@ -990,6 +990,19 @@ class AgnoPipelineExecutor:
                                     attempt + 1,
                                     exc,
                                 )
+                                if attempt < 2:
+                                    # Provider auth/cooldown outages (e.g. 503
+                                    # auth_unavailable) usually clear within
+                                    # minutes — wait them out instead of
+                                    # instantly burning the retry.
+                                    yield _event(
+                                        PipelineEventType.LOG,
+                                        f"[{label}] batch {batch_no}/{n_batches} model "
+                                        f"call failed — retrying in 90s "
+                                        f"(attempt {attempt + 1}/3)",
+                                        agent_id,
+                                    )
+                                    await _aio.sleep(90)
                                 continue
                             if batch is not None and batch.scenes:
                                 break
