@@ -40,7 +40,15 @@ def build_llm_model(
     if provider == ProviderId.ANTHROPIC:
         return Claude(id=model_id, api_key=api_key)
     if provider == ProviderId.GEMINI:
-        return Gemini(id=model_id, api_key=api_key)
+        # Generous output budget: as the parser role, Gemini re-emits whole
+        # scene batches (~10k+ tokens); the API default cap silently squeezes
+        # the JSON down to fewer scenes.
+        opts = settings or {}
+        return Gemini(
+            id=model_id,
+            api_key=api_key,
+            max_output_tokens=int(opts.get("maxOutputTokens", 32_768)),
+        )
     if provider == ProviderId.GROQ:
         # Groq is OpenAI-compatible → OpenAILike with the Groq base.
         return OpenAILike(id=model_id, api_key=api_key, base_url=base_url or _GROQ_DEFAULT_BASE)
