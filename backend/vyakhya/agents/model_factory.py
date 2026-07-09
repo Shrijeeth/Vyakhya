@@ -43,9 +43,16 @@ def build_llm_model(
     if provider == ProviderId.OLLAMA:
         return Ollama(id=model_id, host=base_url or _OLLAMA_DEFAULT_HOST)
     if provider == ProviderId.CUSTOM:
-        # Bring-your-own OpenAI-compatible endpoint (vLLM, LiteLLM, OpenRouter…).
+        # Bring-your-own OpenAI-compatible endpoint (vLLM, LiteLLM, OpenRouter,
+        # cliproxy…). Proxies vary wildly in `response_format: json_schema`
+        # support — many accept it but return empty content. Force agno's
+        # prompt-based JSON path, which works everywhere; the executor already
+        # parses/salvages fenced or noisy JSON.
         if not base_url:
             raise ValueError("custom LLM provider requires a base URL")
-        return OpenAILike(id=model_id, api_key=api_key or "none", base_url=base_url)
+        model = OpenAILike(id=model_id, api_key=api_key or "none", base_url=base_url)
+        model.supports_native_structured_outputs = False
+        model.supports_json_schema_outputs = False
+        return model
 
     raise ValueError(f"{provider.value} is not an LLM provider (cannot build an Agno model)")
