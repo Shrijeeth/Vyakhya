@@ -113,3 +113,16 @@ def test_plan_block_renders_beats():
     )
     block = _plan_block(plan)
     assert "0: Hook — the opening (~7000 ms)" in block
+
+
+def test_scene_lenient_cosmetic_enums():
+    s = GenScene.model_validate(
+        {
+            "narration": "x",
+            "visualType": "custom.html",
+            "captionStyle": "mono-lower-third",
+            "transition": "whip-pan",
+        }
+    )
+    assert s.caption_style is CaptionStyle.MINIMAL
+    assert s.transition is SceneTransition.FADE

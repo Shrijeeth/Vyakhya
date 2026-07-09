@@ -142,7 +142,14 @@ const PROVIDER_KIND: Record<ProviderId, ProviderKind> = Object.fromEntries(
 ) as Record<ProviderId, ProviderKind>;
 
 const ROLES: {
-  id: "comprehension" | "planner" | "scriptwriter" | "visual_designer" | "narrator" | "verifier";
+  id:
+    | "comprehension"
+    | "planner"
+    | "scriptwriter"
+    | "visual_designer"
+    | "narrator"
+    | "verifier"
+    | "parser";
   label: string;
   hint: string;
 }[] = [
@@ -156,6 +163,11 @@ const ROLES: {
   { id: "visual_designer", label: "Visual Designer", hint: "Picks visual types and parameters" },
   { id: "narrator", label: "Narrator (TTS)", hint: "Speaks the narration" },
   { id: "verifier", label: "Verifier", hint: "Checks every claim against the document" },
+  {
+    id: "parser",
+    label: "Parser (structured output)",
+    hint: "Converts every agent's answer into schema JSON — assign a fast model",
+  },
 ];
 
 function StatusPill({ status }: { status: ProviderConnection["status"] }) {

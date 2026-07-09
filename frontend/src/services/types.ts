@@ -132,7 +132,13 @@ export interface ConnectionTestResult {
 }
 
 export type AgentRole =
-  "comprehension" | "planner" | "scriptwriter" | "visual_designer" | "narrator" | "verifier";
+  | "comprehension"
+  | "planner"
+  | "scriptwriter"
+  | "visual_designer"
+  | "narrator"
+  | "verifier"
+  | "parser";
 
 export interface AgentModelAssignment {
   role: AgentRole;

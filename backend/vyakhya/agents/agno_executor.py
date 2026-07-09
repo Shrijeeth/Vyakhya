@@ -108,6 +108,24 @@ class GenScene(BaseModel):
     def _clamp_duration(cls, v: int) -> int:
         return min(max(v, 1000), 60_000)
 
+    # Cosmetic enums must never kill a scene: models invent values like
+    # captionStyle "mono-lower-third" — coerce to the default instead.
+    @field_validator("caption_style", mode="before")
+    @classmethod
+    def _lenient_caption(cls, v: object) -> object:
+        try:
+            return CaptionStyle(v)  # type: ignore[arg-type]
+        except ValueError:
+            return CaptionStyle.MINIMAL
+
+    @field_validator("transition", mode="before")
+    @classmethod
+    def _lenient_transition(cls, v: object) -> object:
+        try:
+            return SceneTransition(v)  # type: ignore[arg-type]
+        except ValueError:
+            return SceneTransition.FADE
+
 
 class GenDocument(BaseModel):
     scenes: list[GenScene]
@@ -231,11 +249,6 @@ _DESIGNER_INSTRUCTIONS = [
     "no markdown fences.",
 ]
 
-_STRUCTURER_INSTRUCTIONS = [
-    "You convert a scene design (possibly informal or with commentary) into "
-    "the required schema. Preserve every scene's content EXACTLY — never "
-    "invent, drop, or rewrite scenes.",
-]
 
 _RESEARCHER_INSTRUCTIONS = [
     "You are the comprehension researcher for Vyakhya. Given a document's title "
@@ -287,6 +300,10 @@ _VERIFIER_INSTRUCTIONS = [
 # Final cut must land within this fraction of the requested length.
 _DURATION_TOLERANCE = 0.15
 
+# Beats per designer call. Scene JSON is heavy (~1.5k output tokens of
+# html+css per scene); more than this per completion risks truncation.
+_SCENE_BATCH = 6
+
 
 def _brief_block(user_prompt: str) -> str:
     """The user's creative brief, prepended to EVERY designer prompt (initial
@@ -333,6 +350,22 @@ async def _resolve_llm_connection(
         )
         conn = result.scalars().first()
     if conn is None:
+        return None
+    api_key = ""
+    if conn.api_key_enc is not None:
+        api_key = (await get_encryptor(session)).decrypt(conn.api_key_enc)
+    return conn, api_key
+
+
+async def _resolve_role_connection(
+    session: Any, role: str
+) -> tuple[ProviderConnection, str] | None:
+    """The LLM connection explicitly assigned to a role (no fallback)."""
+    assignment = await session.get(AgentModelAssignment, role)
+    if assignment is None or not assignment.connection_id:
+        return None
+    conn = await session.get(ProviderConnection, assignment.connection_id)
+    if conn is None or conn.kind != ProviderKind.LLM:
         return None
     api_key = ""
     if conn.api_key_enc is not None:
@@ -637,6 +670,7 @@ class AgnoPipelineExecutor:
                 )
                 raise RuntimeError("no LLM connection configured for the Agno pipeline")
             conn, api_key = resolved
+            parser_resolved = await _resolve_role_connection(session, "parser")
             paper_text = await _load_paper_text(project)
 
         if paper_text.startswith("("):
@@ -648,59 +682,48 @@ class AgnoPipelineExecutor:
 
         model = build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings)
         skills = get_hyperframes_skills()
+
+        # Every agent gets structured output via a parser_model pass. The
+        # parser is its own role in Model Config — assign a FAST model there
+        # (its whole job is converting an answer to schema JSON); unassigned,
+        # it falls back to the main connection's model.
+        pconn, pkey = parser_resolved if parser_resolved is not None else (conn, api_key)
+        log.info("parser model: %s/%s", pconn.provider.value, pconn.model)
+
+        def _parser_model() -> Any:
+            return build_llm_model(
+                pconn.provider, pconn.model, pkey, pconn.base_url, pconn.settings
+            )
+
         designer = Agent(
             name="Visual Designer",
             model=model,
             skills=skills,
-            # NO output_schema/parser_model: a parser pass would REGENERATE the
-            # whole (huge) scene JSON — doubling the dominant token cost of
-            # every designer call. The designer answers in raw JSON (its last
-            # instruction), _coerce_document parses it, and only a reply that
-            # doesn't parse goes through the structurer below.
             instructions=[*_DESIGNER_INSTRUCTIONS, _length_instruction(target_min, tts_enabled)],
-            markdown=False,
-        )
-        structurer = Agent(
-            name="Scene Structurer",
-            model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings),
-            instructions=_STRUCTURER_INSTRUCTIONS,
-            # No tools → provider-native structured output directly.
+            # The designer keeps its skill tools; the parser pass (no tools)
+            # converts its answer via structured output. Batched generation
+            # keeps each reply small, so the parser pass is cheap.
             output_schema=GenDocument,
+            parser_model=_parser_model(),
             markdown=False,
         )
 
         async def _design(prompt: str) -> GenDocument | None:
-            """One designer call: parse its raw reply; fall back to the
-            structurer ONLY when the reply doesn't parse (rare) so the huge
-            scene JSON is normally generated once, not twice."""
+            """One designer call, timed; _coerce_document still guards the
+            output (fence-stripping, truncation salvage, per-scene recovery)."""
             import time as _time
 
             t0 = _time.monotonic()
             res = await designer.arun(input=prompt, stream=False)
             log.info("designer call took %.1fs", _time.monotonic() - t0)
-            content = res.content if res else None
-            parsed = _coerce_document(content)
-            if parsed is not None:
-                return parsed
-            raw = content if isinstance(content, str) else ""
-            if not raw.strip():
-                return None
-            log.warning("designer reply did not parse — structurer fallback")
-            sres = await structurer.arun(
-                input=(
-                    "Convert this scene design into the required schema, "
-                    f"preserving all content exactly:\n\n{raw}"
-                ),
-                stream=False,
-            )
-            return _coerce_document(sres.content if sres else None)
+            return _coerce_document(res.content if res else None)
 
         verifier = Agent(
             name="Verifier",
             model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings),
             instructions=_VERIFIER_INSTRUCTIONS,
-            # No tools → provider-native structured output directly.
             output_schema=VerifierReport,
+            parser_model=_parser_model(),
             markdown=False,
         )
         design_reviewer = Agent(
@@ -708,14 +731,15 @@ class AgnoPipelineExecutor:
             model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings),
             instructions=_DESIGN_REVIEWER_INSTRUCTIONS,
             output_schema=DesignReviewReport,
+            parser_model=_parser_model(),
             markdown=False,
         )
         planner = Agent(
             name="Planner",
             model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings),
             instructions=_PLANNER_INSTRUCTIONS,
-            # No tools → provider-native structured output directly.
             output_schema=StoryPlan,
+            parser_model=_parser_model(),
             markdown=False,
         )
         researcher = Agent(
@@ -724,9 +748,7 @@ class AgnoPipelineExecutor:
             tools=_research_tools(),
             instructions=_RESEARCHER_INSTRUCTIONS,
             output_schema=ResearchNotes,
-            parser_model=build_llm_model(
-                conn.provider, conn.model, api_key, conn.base_url, conn.settings
-            ),
+            parser_model=_parser_model(),
             markdown=False,
         )
 
@@ -860,34 +882,110 @@ class AgnoPipelineExecutor:
                     research_block = f"\n\nWeb research context:\n{research.summary}\n{notes}" + (
                         f"\nAnalogies you may use:\n{analogies}" if analogies else ""
                     )
-                prompt = (
-                    f"{_brief_block(user_prompt)}"
-                    f"Design the explainer scenes for this document.\n"
-                    f"Title: {title}\nAudience: {AudienceLevel(audience).value}\n"
-                    f"Language: {language}{figures_block}{research_block}{_plan_block(plan)}\n\n"
-                    f"Document text:\n{paper_text}"
-                )
                 last_error = "model returned no parseable scenes"
-                for attempt in range(2):
-                    try:
-                        doc = await _design(prompt)
-                    except Exception as exc:  # noqa: BLE001 - provider hiccup → retry once
-                        last_error = f"model call failed: {exc}"
-                        log.warning("designer attempt %d failed: %s", attempt + 1, exc)
-                        continue
-                    if doc is not None and doc.scenes:
-                        break
-                    yield _event(
-                        PipelineEventType.LOG,
-                        f"[{label}] attempt {attempt + 1} produced no valid scenes, retrying…",
-                        agent_id,
+                if plan is not None and len(plan.beats) > _SCENE_BATCH:
+                    # Batched generation: the full cut's JSON (scene html+css ×
+                    # dozens of beats) cannot fit one completion — a 36-beat
+                    # video is ~50k output tokens and WILL truncate. Design a
+                    # few beats per call and append; a failed batch just leaves
+                    # a shortfall the length fit / re-plan below repairs.
+                    doc = GenDocument(scenes=[])
+                    n_batches = (len(plan.beats) + _SCENE_BATCH - 1) // _SCENE_BATCH
+                    for start in range(0, len(plan.beats), _SCENE_BATCH):
+                        chunk = plan.beats[start : start + _SCENE_BATCH]
+                        batch_no = start // _SCENE_BATCH + 1
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] designing beats {start}–{start + len(chunk) - 1} "
+                            f"(batch {batch_no}/{n_batches})…",
+                            agent_id,
+                        )
+                        beat_lines = "\n".join(
+                            f"- {b.headline} — {b.summary} (~{b.duration_ms} ms)" for b in chunk
+                        )
+                        prev_block = ""
+                        if doc.scenes:
+                            tail = "\n".join(
+                                f"- {(s.narration or '')[:60]}" for s in doc.scenes[-3:]
+                            )
+                            prev_block = (
+                                f"\n\nScenes designed so far end with:\n{tail}\n"
+                                "Keep the SAME visual theme (background, palette, "
+                                "typography) so the video feels continuous."
+                            )
+                        bprompt = (
+                            f"{_brief_block(user_prompt)}"
+                            f"Design scenes for ONLY these beats of the story plan "
+                            f"(the other beats are designed separately — do not "
+                            f"cover them). Return ONLY these scenes as "
+                            f'{{"scenes": [...]}}.\n'
+                            f"Title: {title}\nAudience: {AudienceLevel(audience).value}\n"
+                            f"Language: {language}{figures_block}{research_block}\n\n"
+                            f"Beats:\n{beat_lines}{prev_block}\n\n"
+                            f"Document text:\n{paper_text}"
+                        )
+                        batch: GenDocument | None = None
+                        for attempt in range(2):
+                            try:
+                                batch = await _design(bprompt)
+                            except Exception as exc:  # noqa: BLE001 - retry once
+                                log.warning(
+                                    "designer batch %d attempt %d failed: %s",
+                                    batch_no,
+                                    attempt + 1,
+                                    exc,
+                                )
+                                continue
+                            if batch is not None and batch.scenes:
+                                break
+                        if batch is not None and batch.scenes:
+                            for sc in batch.scenes:
+                                sc.index = None  # appended, never patched
+                            doc.scenes.extend(batch.scenes)
+                            yield _event(
+                                PipelineEventType.LOG,
+                                f"[{label}] batch {batch_no}/{n_batches} → "
+                                f"{len(batch.scenes)} scene(s), {len(doc.scenes)} total",
+                                agent_id,
+                            )
+                        else:
+                            yield _event(
+                                PipelineEventType.LOG,
+                                f"[{label}] batch {batch_no}/{n_batches} produced no "
+                                f"valid scenes — continuing",
+                                agent_id,
+                            )
+                    if not doc.scenes:
+                        doc = None
+                else:
+                    prompt = (
+                        f"{_brief_block(user_prompt)}"
+                        f"Design the explainer scenes for this document.\n"
+                        f"Title: {title}\nAudience: {AudienceLevel(audience).value}\n"
+                        f"Language: {language}{figures_block}{research_block}"
+                        f"{_plan_block(plan)}\n\n"
+                        f"Document text:\n{paper_text}"
                     )
-                    prompt += (
-                        "\n\nIMPORTANT: your previous answer did not match the required "
-                        "schema. Respond with ONLY a JSON object of the form "
-                        '{"scenes": [{"narration", "visualType", "params", "captionStyle", '
-                        '"transition", "durationMs", "citations"}, ...]} — no prose.'
-                    )
+                    for attempt in range(2):
+                        try:
+                            doc = await _design(prompt)
+                        except Exception as exc:  # noqa: BLE001 - provider hiccup → retry once
+                            last_error = f"model call failed: {exc}"
+                            log.warning("designer attempt %d failed: %s", attempt + 1, exc)
+                            continue
+                        if doc is not None and doc.scenes:
+                            break
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] attempt {attempt + 1} produced no valid scenes, retrying…",
+                            agent_id,
+                        )
+                        prompt += (
+                            "\n\nIMPORTANT: your previous answer did not match the required "
+                            "schema. Respond with ONLY a JSON object of the form "
+                            '{"scenes": [{"narration", "visualType", "params", "captionStyle", '
+                            '"transition", "durationMs", "citations"}, ...]} — no prose.'
+                        )
                 if doc is None or not doc.scenes:
                     yield _event(PipelineEventType.LOG, f"[{label}] {last_error}", agent_id)
                     yield _event(PipelineEventType.STATUS, AgentStatus.ERROR.value, agent_id)
@@ -1022,22 +1120,32 @@ class AgnoPipelineExecutor:
                         log.warning("length re-plan failed: %s", exc)
                     added: GenDocument | None = None
                     if extra is not None:
-                        beat_lines = "\n".join(
-                            f"- {b.headline} — {b.summary} (~{b.duration_ms} ms)"
-                            for b in extra.beats
-                        )
-                        try:
-                            added = await _design(
-                                f"{_brief_block(user_prompt)}"
-                                f"Design scenes for ONLY these new beats (they slot "
-                                f"between your existing scenes and the closer). "
-                                f'Return ONLY the new scenes as {{"scenes": [...]}} '
-                                f"— do NOT repeat existing scenes.\n\n"
-                                f"New beats:\n{beat_lines}\n\n"
-                                f"Document text:\n{paper_text}"
+                        # Same truncation guard as the initial pass: design the
+                        # new beats a batch at a time.
+                        new_scenes: list[GenScene] = []
+                        for bstart in range(0, len(extra.beats), _SCENE_BATCH):
+                            bchunk = extra.beats[bstart : bstart + _SCENE_BATCH]
+                            beat_lines = "\n".join(
+                                f"- {b.headline} — {b.summary} (~{b.duration_ms} ms)"
+                                for b in bchunk
                             )
-                        except Exception as exc:  # noqa: BLE001 - keep the cut
-                            log.warning("length re-plan design failed: %s", exc)
+                            try:
+                                part = await _design(
+                                    f"{_brief_block(user_prompt)}"
+                                    f"Design scenes for ONLY these new beats (they slot "
+                                    f"between your existing scenes and the closer). "
+                                    f'Return ONLY the new scenes as {{"scenes": [...]}} '
+                                    f"— do NOT repeat existing scenes.\n\n"
+                                    f"New beats:\n{beat_lines}\n\n"
+                                    f"Document text:\n{paper_text}"
+                                )
+                            except Exception as exc:  # noqa: BLE001 - keep the cut
+                                log.warning("length re-plan design failed: %s", exc)
+                                continue
+                            if part is not None and part.scenes:
+                                new_scenes.extend(part.scenes)
+                        if new_scenes:
+                            added = GenDocument(scenes=new_scenes)
                     if added is not None and added.scenes:
                         for sc in added.scenes:
                             sc.index = None  # brand-new scenes — splice, don't patch

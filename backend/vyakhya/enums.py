@@ -54,6 +54,9 @@ class AgentRole(StrEnum):
     VISUAL_DESIGNER = "visual_designer"
     NARRATOR = "narrator"
     VERIFIER = "verifier"
+    # Not a pipeline stage: the model every agent uses to convert its raw
+    # answer into structured output (Agno parser_model). Assign a fast model.
+    PARSER = "parser"
 
 
 class VisualType(StrEnum):
