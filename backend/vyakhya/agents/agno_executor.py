@@ -934,10 +934,12 @@ class AgnoPipelineExecutor:
                             )
                         bprompt = (
                             f"{_brief_block(user_prompt)}"
-                            f"Design scenes for ONLY these beats of the story plan "
-                            f"(the other beats are designed separately — do not "
-                            f"cover them). Return ONLY these scenes as "
-                            f'{{"scenes": [...]}}.\n'
+                            f"Design scenes for ONLY these {len(chunk)} beats of the "
+                            f"story plan (the other beats are designed separately — "
+                            f"do not cover them). EXACTLY ONE scene per beat, in "
+                            f"beat order, each sized to its beat's duration: return "
+                            f'{len(chunk)} scenes as {{"scenes": [...]}} — never '
+                            f"merge or summarize beats.\n"
                             f"Title: {title}\nAudience: {AudienceLevel(audience).value}\n"
                             f"Language: {language}{figures_block}{research_block}\n\n"
                             f"Beats:\n{beat_lines}{prev_block}\n\n"
