@@ -149,6 +149,37 @@ class DesignReviewReport(BaseModel):
     issues: list[DesignIssue] = Field(default_factory=list)
 
 
+# ── Story plan (planner stage; escalation target when a cut goes wrong) ───────
+class PlanBeat(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    # When replacing an existing scene (verifier escalation), the 0-based
+    # index of the scene this beat replaces; None for brand-new beats.
+    index: int | None = None
+    headline: str
+    summary: str = ""
+    duration_ms: int = Field(default=9000, alias="durationMs")
+
+
+class StoryPlan(BaseModel):
+    beats: list[PlanBeat] = Field(default_factory=list)
+
+
+_PLANNER_INSTRUCTIONS = [
+    "You are the story planner for Vyakhya: it turns any document into an "
+    "explainer video. You write the beat sheet the visual designer designs "
+    "one scene per beat from.",
+    "THE USER BRIEF IS LAW. If it asks for a story, plan a story arc; if it "
+    "says layman, plan for a layman. Its structure, tone, and style override "
+    "everything else here.",
+    "Cover the document end to end: a hook, the build-up through the "
+    "document's key ideas, the payoff, and a closer. Every beat's summary "
+    "names the part of the document it draws from.",
+    "Respect the requested beat count and total duration — a long video "
+    "needs MANY beats, not a handful of long ones.",
+]
+
+
 _DESIGN_REVIEWER_INSTRUCTIONS = [
     "You are the art director reviewing RENDERED SCREENSHOTS of an explainer "
     "video's scenes (one image per scene, in order). Judge what you SEE.",
@@ -421,6 +452,32 @@ def _coerce_document(content: object) -> GenDocument | None:
     return GenDocument(scenes=scenes)
 
 
+def _coerce_plan(content: object) -> StoryPlan | None:
+    """Normalize planner output to a StoryPlan (model, dict, or bare beat list)."""
+    if isinstance(content, StoryPlan):
+        return content if content.beats else None
+    data = _extract_data(content)
+    if isinstance(data, list):
+        data = {"beats": data}
+    if not isinstance(data, dict):
+        return None
+    try:
+        plan = StoryPlan.model_validate(data)
+    except Exception:  # noqa: BLE001 - a bad plan is just skipped
+        return None
+    return plan if plan.beats else None
+
+
+def _plan_block(plan: StoryPlan | None) -> str:
+    """The beat sheet, appended to the designer's initial prompt."""
+    if plan is None or not plan.beats:
+        return ""
+    lines = "\n".join(
+        f"{i}: {b.headline} — {b.summary} (~{b.duration_ms} ms)" for i, b in enumerate(plan.beats)
+    )
+    return f"\n\nStory plan — design ONE scene per beat, in order (durations are guides):\n{lines}"
+
+
 def _patch_scenes(doc: GenDocument, revised: GenDocument) -> int:
     """Apply a partial revision: each revised scene replaces the scene at its
     0-based ``index``. Returns how many were patched. A reply without indexes
@@ -610,6 +667,14 @@ class AgnoPipelineExecutor:
             output_schema=DesignReviewReport,
             markdown=False,
         )
+        planner = Agent(
+            name="Planner",
+            model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings),
+            instructions=_PLANNER_INSTRUCTIONS,
+            # No tools → provider-native structured output directly.
+            output_schema=StoryPlan,
+            markdown=False,
+        )
         researcher = Agent(
             name="Researcher",
             model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings),
@@ -626,6 +691,7 @@ class AgnoPipelineExecutor:
         scenes_payload: list[dict] = []
         doc: GenDocument | None = None
         research: ResearchNotes | None = None
+        plan: StoryPlan | None = None
         figure_map: dict[str, str] = {f["id"]: f["url"] for f in figures if f.get("url")}
 
         for idx, (agent_id, label) in enumerate(AGENT_SEQUENCE):
@@ -691,6 +757,48 @@ class AgnoPipelineExecutor:
                         PipelineEventType.LOG, f"[{label}] web research skipped: {exc}", agent_id
                     )
 
+            if agent_id is AgentId.PLANNER:
+                # Beat sheet sized to the target length — the designer builds
+                # one scene per beat, so a thin plan (the main cause of short
+                # cuts) is caught here, not three stages later.
+                target_ms = max(1, target_min) * 60_000
+                n_lo = max(3, target_ms // 9000)
+                n_hi = max(n_lo + 2, target_ms // 4000)
+                research_note = (
+                    f"\n\nWeb research summary:\n{research.summary}"
+                    if research is not None and research.summary
+                    else ""
+                )
+                try:
+                    pres = await planner.arun(
+                        input=(
+                            f"{_brief_block(user_prompt)}"
+                            f"Plan the beat sheet for this explainer video.\n"
+                            f"Title: {title}\nAudience: {AudienceLevel(audience).value}\n"
+                            f"Target: about {target_ms} ms total — plan {n_lo}–{n_hi} beats "
+                            f"of 4000–9000 ms each, summing to the target."
+                            f"{research_note}\n\nDocument text:\n{paper_text}"
+                        ),
+                        stream=False,
+                    )
+                    plan = _coerce_plan(pres.content if pres else None)
+                except Exception as exc:  # noqa: BLE001 - the designer can work planless
+                    log.warning("planner failed: %s", exc)
+                if plan is not None:
+                    planned_ms = sum(b.duration_ms for b in plan.beats)
+                    yield _event(
+                        PipelineEventType.LOG,
+                        f"[{label}] {len(plan.beats)} beats planned "
+                        f"(~{planned_ms / 1000:.0f}s vs {target_ms / 1000:.0f}s target)",
+                        agent_id,
+                    )
+                else:
+                    yield _event(
+                        PipelineEventType.LOG,
+                        f"[{label}] no usable plan — the designer will structure the video itself",
+                        agent_id,
+                    )
+
             if agent_id is AgentId.VISUAL_DESIGNER:
                 figures_block = ""
                 if figures:
@@ -713,7 +821,7 @@ class AgnoPipelineExecutor:
                     f"{_brief_block(user_prompt)}"
                     f"Design the explainer scenes for this document.\n"
                     f"Title: {title}\nAudience: {AudienceLevel(audience).value}\n"
-                    f"Language: {language}{figures_block}{research_block}\n\n"
+                    f"Language: {language}{figures_block}{research_block}{_plan_block(plan)}\n\n"
                     f"Document text:\n{paper_text}"
                 )
                 last_error = "model returned no parseable scenes"
@@ -835,11 +943,94 @@ class AgnoPipelineExecutor:
                         agent_id,
                     )
 
+                # Escalation: length-fit rounds can only pad the existing plan.
+                # A cut still far short of target means the PLAN is too thin —
+                # go back to the planner for new beats, then design only those
+                # (one pass, so a stubborn shortfall can't loop forever).
+                total_ms = sum(s.duration_ms for s in doc.scenes)
+                if total_ms < target_ms * 0.7:
+                    missing_ms = target_ms - total_ms
+                    yield _event(
+                        PipelineEventType.LOG,
+                        f"[{label}] cut is still {total_ms / 1000:.0f}s vs "
+                        f"{target_ms / 1000:.0f}s — sending back to the planner "
+                        f"for the missing {missing_ms / 1000:.0f}s…",
+                        agent_id,
+                    )
+                    summary = "\n".join(
+                        f"{i}: {(s.narration or '')[:60]}" for i, s in enumerate(doc.scenes)
+                    )
+                    n_new = max(2, missing_ms // 8000)
+                    extra: StoryPlan | None = None
+                    try:
+                        pres = await planner.arun(
+                            input=(
+                                f"{_brief_block(user_prompt)}"
+                                f"The current cut covers only {total_ms} ms of a "
+                                f"{target_ms} ms video. Plan about {n_new} NEW beats "
+                                f"(4000–9000 ms each, ~{missing_ms} ms total) covering "
+                                f"document material the existing scenes skip. Return "
+                                f"ONLY the new beats — do not repeat existing ones.\n\n"
+                                f"Existing scenes (index: narration):\n{summary}\n\n"
+                                f"Document text:\n{paper_text}"
+                            ),
+                            stream=False,
+                        )
+                        extra = _coerce_plan(pres.content if pres else None)
+                    except Exception as exc:  # noqa: BLE001 - keep the cut
+                        log.warning("length re-plan failed: %s", exc)
+                    added: GenDocument | None = None
+                    if extra is not None:
+                        beat_lines = "\n".join(
+                            f"- {b.headline} — {b.summary} (~{b.duration_ms} ms)"
+                            for b in extra.beats
+                        )
+                        try:
+                            eres = await designer.arun(
+                                input=(
+                                    f"{_brief_block(user_prompt)}"
+                                    f"Design scenes for ONLY these new beats (they slot "
+                                    f"between your existing scenes and the closer). "
+                                    f'Return ONLY the new scenes as {{"scenes": [...]}} '
+                                    f"— do NOT repeat existing scenes.\n\n"
+                                    f"New beats:\n{beat_lines}\n\n"
+                                    f"Document text:\n{paper_text}"
+                                ),
+                                stream=False,
+                            )
+                            added = _coerce_document(eres.content if eres else None)
+                        except Exception as exc:  # noqa: BLE001 - keep the cut
+                            log.warning("length re-plan design failed: %s", exc)
+                    if added is not None and added.scenes:
+                        for sc in added.scenes:
+                            sc.index = None  # brand-new scenes — splice, don't patch
+                        if len(doc.scenes) > 1:
+                            doc.scenes = doc.scenes[:-1] + added.scenes + doc.scenes[-1:]
+                        else:
+                            doc.scenes = doc.scenes + added.scenes
+                        scenes_payload = _dump_scenes(doc, figure_map)
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] re-plan added {len(added.scenes)} scenes → "
+                            f"{len(doc.scenes)} total, "
+                            f"{sum(s.duration_ms for s in doc.scenes) / 1000:.0f}s",
+                            agent_id,
+                        )
+                    else:
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] re-plan produced no usable scenes — keeping cut",
+                            agent_id,
+                        )
+
             if agent_id is AgentId.VERIFIER and doc is not None:
                 # Agentic verify → revise loop: the verifier grounds every claim
                 # in the paper; on failure the designer revises and the verifier
-                # re-checks, up to the configured number of rounds.
-                for round_no in range(1, verifier_rounds + 1):
+                # re-checks, up to the configured number of rounds. When the
+                # rounds run out with fails standing, escalate to the planner:
+                # replacement beats → full scene redesigns → one extra re-check
+                # (hence the +2 range; the last iteration only re-checks).
+                for round_no in range(1, verifier_rounds + 2):
                     report: VerifierReport | None = None
                     try:
                         vres = await verifier.arun(
@@ -880,33 +1071,97 @@ class AgnoPipelineExecutor:
                     if report.approved and not fails:
                         yield _event(PipelineEventType.LOG, f"[{label}] approved", agent_id)
                         break
-                    if round_no == verifier_rounds:
+                    if round_no > verifier_rounds:
                         yield _event(
                             PipelineEventType.LOG,
-                            f"[{label}] max revision rounds reached — proceeding with "
+                            f"[{label}] re-planned scenes re-checked — proceeding with "
                             f"{len(fails)} unresolved flag(s)",
                             agent_id,
                         )
                         break
-                    yield _event(
-                        PipelineEventType.LOG,
-                        f"[{label}] sending scenes back to the designer for revision…",
-                        agent_id,
-                    )
                     fail_lines = "\n".join(
                         f"- {f.claim} ({f.source_span}): {f.note or f.level}"
                         for f in report.flags
                         if f.level != "pass"
                     )
-                    revision_prompt = (
-                        f"{_brief_block(user_prompt)}"
-                        f"Revise your scenes. The verifier rejected them.\n\n"
-                        f"Verifier notes:\n{report.revision_notes}\n\n"
-                        f"Flagged claims:\n{fail_lines}\n\n"
-                        f"Current scenes:\n{_scenes_json(doc)}\n\n"
-                        f"Fix ONLY what the verifier flagged (keep everything else), "
-                        f"grounding every claim in the document.\n\nDocument text:\n{paper_text}"
-                    )
+                    if round_no == verifier_rounds:
+                        # Escalation: revision rounds couldn't ground these
+                        # claims — the scenes themselves are bad. The planner
+                        # writes replacement beats; the designer rebuilds those
+                        # scenes from scratch (new narration AND a new visual —
+                        # the redesigned render then goes through the visual
+                        # screenshot review below like any other scene).
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] revision rounds exhausted with {len(fails)} "
+                            f"fail(s) — sending the failing scenes back to the planner…",
+                            agent_id,
+                        )
+                        summary = "\n".join(
+                            f"{i}: {(s.narration or '')[:60]}" for i, s in enumerate(doc.scenes)
+                        )
+                        rplan: StoryPlan | None = None
+                        try:
+                            pres = await planner.arun(
+                                input=(
+                                    f"{_brief_block(user_prompt)}"
+                                    "These claims in the current cut failed fact "
+                                    f"verification:\n{fail_lines}\n\n"
+                                    f"Scenes (index: narration):\n{summary}\n\n"
+                                    "Write a replacement beat for EACH scene carrying a "
+                                    "failed claim, grounded ONLY in the document. Each "
+                                    'beat must carry the 0-based "index" of the scene it '
+                                    f"replaces.\n\nDocument text:\n{paper_text}"
+                                ),
+                                stream=False,
+                            )
+                            rplan = _coerce_plan(pres.content if pres else None)
+                        except Exception as exc:  # noqa: BLE001 - keep the cut
+                            log.warning("verifier re-plan failed: %s", exc)
+                        beats = [
+                            b
+                            for b in (rplan.beats if rplan is not None else [])
+                            if b.index is not None and 0 <= b.index < len(doc.scenes)
+                        ]
+                        if not beats:
+                            yield _event(
+                                PipelineEventType.LOG,
+                                f"[{label}] re-plan produced no replacement beats — "
+                                f"proceeding with {len(fails)} unresolved flag(s)",
+                                agent_id,
+                            )
+                            break
+                        beat_lines = "\n".join(
+                            f"- index {b.index}: {b.headline} — {b.summary} (~{b.duration_ms} ms)"
+                            for b in beats
+                        )
+                        revision_prompt = (
+                            f"{_brief_block(user_prompt)}"
+                            "REDESIGN these scenes from scratch per the new beats — "
+                            "new narration AND a new html/css visual, every claim "
+                            "grounded in the document. Return ONLY the redesigned "
+                            'scenes, each carrying its 0-based "index".\n\n'
+                            f"New beats:\n{beat_lines}\n\nDocument text:\n{paper_text}"
+                        )
+                    else:
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] sending scenes back to the designer for revision…",
+                            agent_id,
+                        )
+                        revision_prompt = (
+                            f"{_brief_block(user_prompt)}"
+                            f"Revise your scenes. The verifier rejected them.\n\n"
+                            f"Verifier notes:\n{report.revision_notes}\n\n"
+                            f"Flagged claims:\n{fail_lines}\n\n"
+                            f"Current scenes:\n{_scenes_json(doc)}\n\n"
+                            f"Fix ONLY what the verifier flagged (keep everything else), "
+                            f"grounding every claim in the document. If a flagged scene "
+                            f"is wrong at its core (not a wording slip), REDESIGN it — "
+                            f"new narration AND a new html/css visual. Return ONLY the "
+                            f'scenes you changed, each carrying its 0-based "index".'
+                            f"\n\nDocument text:\n{paper_text}"
+                        )
                     try:
                         rres = await designer.arun(input=revision_prompt, stream=False)
                         revised = _coerce_document(rres.content if rres else None)
@@ -924,6 +1179,14 @@ class AgnoPipelineExecutor:
                             f"(cut stays {len(doc.scenes)} scenes)",
                             agent_id,
                         )
+                    elif round_no == verifier_rounds:
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] redesign not applicable — proceeding with "
+                            f"{len(fails)} unresolved flag(s)",
+                            agent_id,
+                        )
+                        break
                     else:
                         yield _event(
                             PipelineEventType.LOG,

@@ -88,3 +88,28 @@ def test_skills_load():
     names = skills.get_skill_names()
     assert "hyperframes" in names
     assert "hyperframes-core" in names
+
+
+def test_coerce_plan_from_json_and_bare_list():
+    from vyakhya.agents.agno_executor import _coerce_plan
+
+    plan = _coerce_plan('{"beats": [{"headline": "Hook", "durationMs": 8000}]}')
+    assert plan is not None and plan.beats[0].headline == "Hook"
+    # Bare array without the {"beats": ...} wrapper.
+    plan = _coerce_plan('[{"headline": "A"}, {"headline": "B", "index": 3}]')
+    assert plan is not None and len(plan.beats) == 2
+    assert plan.beats[1].index == 3
+    # Garbage and empty plans are rejected.
+    assert _coerce_plan("not json") is None
+    assert _coerce_plan('{"beats": []}') is None
+
+
+def test_plan_block_renders_beats():
+    from vyakhya.agents.agno_executor import StoryPlan, _plan_block
+
+    assert _plan_block(None) == ""
+    plan = StoryPlan.model_validate(
+        {"beats": [{"headline": "Hook", "summary": "the opening", "durationMs": 7000}]}
+    )
+    block = _plan_block(plan)
+    assert "0: Hook — the opening (~7000 ms)" in block
