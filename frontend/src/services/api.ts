@@ -210,6 +210,7 @@ export interface ConnectionInput {
   model: string;
   apiKey: string;
   baseUrl?: string;
+  settings?: Record<string, unknown>;
 }
 
 export function addConnection(c: ConnectionInput): Promise<ProviderConnection> {

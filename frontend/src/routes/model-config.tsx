@@ -30,6 +30,7 @@ import type {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -183,6 +184,8 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
   const [model, setModel] = useState(LLM_PROVIDERS[0].models[0]);
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
+  const [foldSystem, setFoldSystem] = useState(false);
+  const [toolPrefix, setToolPrefix] = useState("");
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
   const qc = useQueryClient();
   const mutation = useMutation({
@@ -192,6 +195,9 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
         model,
         apiKey,
         baseUrl: baseUrl || undefined,
+        settings: PROVIDERS.find((p) => p.id === provider)?.custom
+          ? { foldSystemPrompt: foldSystem, toolNamePrefix: toolPrefix.trim() }
+          : undefined,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["connections"] });
@@ -297,6 +303,30 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
                 onChange={(e) => setBaseUrl(e.target.value)}
               />
             </div>
+            {providerMeta?.custom && (
+              <>
+                <div className="col-span-2 flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2.5">
+                  <div>
+                    <Label className="text-sm">Fold system prompt</Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Merge system instructions into the first user message — enable if the endpoint
+                      ignores system messages (agents produce no output without it).
+                    </p>
+                  </div>
+                  <Switch checked={foldSystem} onCheckedChange={setFoldSystem} />
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <Label>
+                    Tool name prefix <span className="text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input
+                    placeholder="Stripped from tool-call names the endpoint rewrites"
+                    value={toolPrefix}
+                    onChange={(e) => setToolPrefix(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
           </>
         )}
         {keyless && (

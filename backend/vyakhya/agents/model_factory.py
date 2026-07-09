@@ -20,7 +20,11 @@ _OLLAMA_DEFAULT_HOST = "http://localhost:11434"
 
 
 def build_llm_model(
-    provider: ProviderId, model_id: str, api_key: str, base_url: str | None = None
+    provider: ProviderId,
+    model_id: str,
+    api_key: str,
+    base_url: str | None = None,
+    settings: dict | None = None,
 ) -> Any:
     """Return an Agno ``Model`` for an LLM provider connection."""
     from agno.models.anthropic import Claude
@@ -43,16 +47,31 @@ def build_llm_model(
     if provider == ProviderId.OLLAMA:
         return Ollama(id=model_id, host=base_url or _OLLAMA_DEFAULT_HOST)
     if provider == ProviderId.CUSTOM:
-        # Bring-your-own OpenAI-compatible endpoint (vLLM, LiteLLM, OpenRouter,
-        # cliproxy…). Proxies vary wildly in `response_format: json_schema`
-        # support — many accept it but return empty content. Force agno's
-        # prompt-based JSON path, which works everywhere; the executor already
-        # parses/salvages fenced or noisy JSON.
+        # Bring-your-own OpenAI-compatible endpoint (vLLM, LiteLLM,
+        # OpenRouter, self-hosted gateways…). With no options set this is a
+        # plain OpenAILike. The per-connection options (Model Config) adapt
+        # it to non-reference endpoints: folding system messages into the
+        # first user message and stripping a rewritten tool-name prefix.
+        # When such compatibility options are on, structured output also
+        # switches to agno's prompt-based JSON path — those endpoints tend
+        # to accept `response_format: json_schema` without enforcing it.
+        from vyakhya.agents.custom_model import CustomChatModel
+
         if not base_url:
             raise ValueError("custom LLM provider requires a base URL")
-        model = OpenAILike(id=model_id, api_key=api_key or "none", base_url=base_url)
-        model.supports_native_structured_outputs = False
-        model.supports_json_schema_outputs = False
+        opts = settings or {}
+        fold = bool(opts.get("foldSystemPrompt", False))
+        prefix = str(opts.get("toolNamePrefix", "") or "")
+        model = CustomChatModel(
+            id=model_id,
+            api_key=api_key or "none",
+            base_url=base_url,
+            fold_system_prompt=fold,
+            tool_name_prefix=prefix,
+        )
+        if fold or prefix:
+            model.supports_native_structured_outputs = False
+            model.supports_json_schema_outputs = False
         return model
 
     raise ValueError(f"{provider.value} is not an LLM provider (cannot build an Agno model)")

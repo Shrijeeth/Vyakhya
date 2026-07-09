@@ -525,8 +525,8 @@ class AgnoPipelineExecutor:
                 AgentId.INGESTOR,
             )
 
-        model = build_llm_model(conn.provider, conn.model, api_key, conn.base_url)
-        parser = build_llm_model(conn.provider, conn.model, api_key, conn.base_url)
+        model = build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings)
+        parser = build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings)
         skills = get_hyperframes_skills()
         designer = Agent(
             name="Visual Designer",
@@ -543,7 +543,7 @@ class AgnoPipelineExecutor:
         )
         verifier = Agent(
             name="Verifier",
-            model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url),
+            model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings),
             instructions=_VERIFIER_INSTRUCTIONS,
             # No tools → provider-native structured output directly.
             output_schema=VerifierReport,
@@ -551,18 +551,20 @@ class AgnoPipelineExecutor:
         )
         design_reviewer = Agent(
             name="Design Reviewer",
-            model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url),
+            model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings),
             instructions=_DESIGN_REVIEWER_INSTRUCTIONS,
             output_schema=DesignReviewReport,
             markdown=False,
         )
         researcher = Agent(
             name="Researcher",
-            model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url),
+            model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings),
             tools=_research_tools(),
             instructions=_RESEARCHER_INSTRUCTIONS,
             output_schema=ResearchNotes,
-            parser_model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url),
+            parser_model=build_llm_model(
+                conn.provider, conn.model, api_key, conn.base_url, conn.settings
+            ),
             markdown=False,
         )
 
