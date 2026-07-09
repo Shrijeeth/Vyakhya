@@ -225,6 +225,16 @@ _DESIGNER_INSTRUCTIONS = [
     "Narration carries the explanation (~2.7 words/sec — size durationMs to "
     "it); on-screen text stays short and punchy.",
     "Every scene cites a real span of the document (e.g. '§3.2, p. 4').",
+    'Your final message is ONLY a JSON object {"scenes": [{"narration", '
+    '"visualType", "params": {"html", "css"}, "captionStyle", "transition", '
+    '"durationMs", "citations": [{"label", "sourceSpan"}]}, ...]} — no prose, '
+    "no markdown fences.",
+]
+
+_STRUCTURER_INSTRUCTIONS = [
+    "You convert a scene design (possibly informal or with commentary) into "
+    "the required schema. Preserve every scene's content EXACTLY — never "
+    "invent, drop, or rewrite scenes.",
 ]
 
 _RESEARCHER_INSTRUCTIONS = [
@@ -637,21 +647,54 @@ class AgnoPipelineExecutor:
             )
 
         model = build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings)
-        parser = build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings)
         skills = get_hyperframes_skills()
         designer = Agent(
             name="Visual Designer",
             model=model,
             skills=skills,
+            # NO output_schema/parser_model: a parser pass would REGENERATE the
+            # whole (huge) scene JSON — doubling the dominant token cost of
+            # every designer call. The designer answers in raw JSON (its last
+            # instruction), _coerce_document parses it, and only a reply that
+            # doesn't parse goes through the structurer below.
             instructions=[*_DESIGNER_INSTRUCTIONS, _length_instruction(target_min, tts_enabled)],
-            output_schema=GenDocument,
-            # The designer keeps its skill tools; a separate parser pass (no
-            # tools) converts its answer via provider-native structured output.
-            # This avoids the "json mode + tool calling" conflict AND the
-            # schema-drift failures of prompt-injected JSON mode.
-            parser_model=parser,
             markdown=False,
         )
+        structurer = Agent(
+            name="Scene Structurer",
+            model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings),
+            instructions=_STRUCTURER_INSTRUCTIONS,
+            # No tools → provider-native structured output directly.
+            output_schema=GenDocument,
+            markdown=False,
+        )
+
+        async def _design(prompt: str) -> GenDocument | None:
+            """One designer call: parse its raw reply; fall back to the
+            structurer ONLY when the reply doesn't parse (rare) so the huge
+            scene JSON is normally generated once, not twice."""
+            import time as _time
+
+            t0 = _time.monotonic()
+            res = await designer.arun(input=prompt, stream=False)
+            log.info("designer call took %.1fs", _time.monotonic() - t0)
+            content = res.content if res else None
+            parsed = _coerce_document(content)
+            if parsed is not None:
+                return parsed
+            raw = content if isinstance(content, str) else ""
+            if not raw.strip():
+                return None
+            log.warning("designer reply did not parse — structurer fallback")
+            sres = await structurer.arun(
+                input=(
+                    "Convert this scene design into the required schema, "
+                    f"preserving all content exactly:\n\n{raw}"
+                ),
+                stream=False,
+            )
+            return _coerce_document(sres.content if sres else None)
+
         verifier = Agent(
             name="Verifier",
             model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings),
@@ -827,12 +870,11 @@ class AgnoPipelineExecutor:
                 last_error = "model returned no parseable scenes"
                 for attempt in range(2):
                     try:
-                        result = await designer.arun(input=prompt, stream=False)
+                        doc = await _design(prompt)
                     except Exception as exc:  # noqa: BLE001 - provider hiccup → retry once
                         last_error = f"model call failed: {exc}"
                         log.warning("designer attempt %d failed: %s", attempt + 1, exc)
                         continue
-                    doc = _coerce_document(result.content if result else None)
                     if doc is not None and doc.scenes:
                         break
                     yield _event(
@@ -915,8 +957,7 @@ class AgnoPipelineExecutor:
                             f"Document text:\n{paper_text}"
                         )
                     try:
-                        fres = await designer.arun(input=fit_prompt, stream=False)
-                        fixed = _coerce_document(fres.content if fres else None)
+                        fixed = await _design(fit_prompt)
                     except Exception as exc:  # noqa: BLE001 - keep current cut
                         log.warning("length-fit round %d failed: %s", fit_round, exc)
                         fixed = None
@@ -986,19 +1027,15 @@ class AgnoPipelineExecutor:
                             for b in extra.beats
                         )
                         try:
-                            eres = await designer.arun(
-                                input=(
-                                    f"{_brief_block(user_prompt)}"
-                                    f"Design scenes for ONLY these new beats (they slot "
-                                    f"between your existing scenes and the closer). "
-                                    f'Return ONLY the new scenes as {{"scenes": [...]}} '
-                                    f"— do NOT repeat existing scenes.\n\n"
-                                    f"New beats:\n{beat_lines}\n\n"
-                                    f"Document text:\n{paper_text}"
-                                ),
-                                stream=False,
+                            added = await _design(
+                                f"{_brief_block(user_prompt)}"
+                                f"Design scenes for ONLY these new beats (they slot "
+                                f"between your existing scenes and the closer). "
+                                f'Return ONLY the new scenes as {{"scenes": [...]}} '
+                                f"— do NOT repeat existing scenes.\n\n"
+                                f"New beats:\n{beat_lines}\n\n"
+                                f"Document text:\n{paper_text}"
                             )
-                            added = _coerce_document(eres.content if eres else None)
                         except Exception as exc:  # noqa: BLE001 - keep the cut
                             log.warning("length re-plan design failed: %s", exc)
                     if added is not None and added.scenes:
@@ -1163,8 +1200,7 @@ class AgnoPipelineExecutor:
                             f"\n\nDocument text:\n{paper_text}"
                         )
                     try:
-                        rres = await designer.arun(input=revision_prompt, stream=False)
-                        revised = _coerce_document(rres.content if rres else None)
+                        revised = await _design(revision_prompt)
                     except Exception as exc:  # noqa: BLE001 - keep current doc on failure
                         log.warning("designer revision failed: %s", exc)
                         revised = None
@@ -1345,8 +1381,7 @@ class AgnoPipelineExecutor:
                         '"index" from the issue list — do NOT resend unchanged scenes.'
                     )
                     try:
-                        vres2 = await designer.arun(input=visual_prompt, stream=False)
-                        revised = _coerce_document(vres2.content if vres2 else None)
+                        revised = await _design(visual_prompt)
                     except Exception as exc:  # noqa: BLE001 - keep current doc
                         log.warning("visual revision failed: %s", exc)
                         revised = None
