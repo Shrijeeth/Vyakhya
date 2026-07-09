@@ -669,6 +669,13 @@ class AgnoPipelineExecutor:
                 raise RuntimeError("no LLM connection configured for the Agno pipeline")
             conn, api_key = resolved
             parser_resolved = await _resolve_role_connection(session, "parser")
+            # Honor the Model Config role assignments for every agent (not
+            # just the designer): unassigned roles fall back to the main
+            # (visual designer) connection.
+            role_conns = {
+                role: await _resolve_role_connection(session, role)
+                for role in ("comprehension", "planner", "verifier")
+            }
             paper_text = await _load_paper_text(project)
 
         if paper_text.startswith("("):
@@ -691,6 +698,12 @@ class AgnoPipelineExecutor:
             return build_llm_model(
                 pconn.provider, pconn.model, pkey, pconn.base_url, pconn.settings
             )
+
+        def _role_model(role: str) -> Any:
+            rc = role_conns.get(role)
+            c, k = rc if rc is not None else (conn, api_key)
+            log.info("%s model: %s/%s", role, c.provider.value, c.model)
+            return build_llm_model(c.provider, c.model, k, c.base_url, c.settings)
 
         designer = Agent(
             name="Visual Designer",
@@ -738,7 +751,7 @@ class AgnoPipelineExecutor:
 
         verifier = Agent(
             name="Verifier",
-            model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings),
+            model=_role_model("verifier"),
             instructions=_VERIFIER_INSTRUCTIONS,
             output_schema=VerifierReport,
             parser_model=_parser_model(),
@@ -746,7 +759,8 @@ class AgnoPipelineExecutor:
         )
         design_reviewer = Agent(
             name="Design Reviewer",
-            model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings),
+            # Shares the verifier role's connection (must be vision-capable).
+            model=_role_model("verifier"),
             instructions=_DESIGN_REVIEWER_INSTRUCTIONS,
             output_schema=DesignReviewReport,
             parser_model=_parser_model(),
@@ -754,7 +768,7 @@ class AgnoPipelineExecutor:
         )
         planner = Agent(
             name="Planner",
-            model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings),
+            model=_role_model("planner"),
             instructions=_PLANNER_INSTRUCTIONS,
             output_schema=StoryPlan,
             parser_model=_parser_model(),
@@ -762,7 +776,7 @@ class AgnoPipelineExecutor:
         )
         researcher = Agent(
             name="Researcher",
-            model=build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings),
+            model=_role_model("comprehension"),
             tools=_research_tools(),
             instructions=_RESEARCHER_INSTRUCTIONS,
             output_schema=ResearchNotes,
@@ -1480,6 +1494,29 @@ class AgnoPipelineExecutor:
                         yield _event(
                             PipelineEventType.LOG,
                             f"[{label}] visual reviewer unavailable — proceeding",
+                            agent_id,
+                        )
+                        break
+                    # Blind round: the reviewer answered without receiving the
+                    # screenshots (endpoint dropped the image parts) and flags
+                    # every scene with "no visual content". Acting on that
+                    # would send the designer phantom fixes — skip the round.
+                    blind_markers = (
+                        "no visual content",
+                        "no screenshot",
+                        "missing rendered",
+                        "no image",
+                    )
+                    blind = [
+                        i
+                        for i in dreport.issues
+                        if any(m in i.problem.lower() for m in blind_markers)
+                    ]
+                    if dreport.issues and len(blind) * 2 >= len(dreport.issues):
+                        yield _event(
+                            PipelineEventType.LOG,
+                            f"[{label}] visual round {vround}: reviewer did not receive "
+                            f"the screenshots — skipping this round",
                             agent_id,
                         )
                         break
