@@ -358,12 +358,44 @@ def _extract_data(content: object) -> dict | list | None:
     return None
 
 
+def _salvage_scene_objects(text: str) -> list | None:
+    """Recover complete scene objects from a TRUNCATED response (the model
+    hit its output-token cap mid-JSON): decode objects one by one from the
+    "scenes" array and drop the incomplete tail."""
+    import json
+    import re
+
+    m = re.search(r'"scenes"\s*:\s*\[', text)
+    start = m.end() if m else (text.find("[") + 1 if text.lstrip().startswith("[") else -1)
+    if start <= 0:
+        return None
+    dec = json.JSONDecoder()
+    idx, n, out = start, len(text), []
+    while idx < n:
+        while idx < n and text[idx] in " \t\r\n,":
+            idx += 1
+        if idx >= n or text[idx] == "]":
+            break
+        try:
+            obj, idx = dec.raw_decode(text, idx)
+        except Exception:  # noqa: BLE001 - truncation point reached
+            break
+        out.append(obj)
+    return out or None
+
+
 def _coerce_document(content: object) -> GenDocument | None:
     """Normalize the agent output to a GenDocument, salvaging what validates:
     a whole-document parse first, then scene-by-scene (invalid scenes dropped)."""
     if isinstance(content, GenDocument):
         return content
     data = _extract_data(content)
+    if data is None and isinstance(content, str):
+        # Truncated JSON (output-token cap): keep every complete scene.
+        salvaged = _salvage_scene_objects(content)
+        if salvaged:
+            log.warning("response truncated — salvaged %d complete scene(s)", len(salvaged))
+            data = {"scenes": salvaged}
     if data is None:
         return None
     if isinstance(data, list):  # bare scene array without the {"scenes": ...} wrapper
@@ -724,14 +756,34 @@ class AgnoPipelineExecutor:
                         f"(round {fit_round}/{length_fit_rounds})",
                         agent_id,
                     )
-                    fit_prompt = (
-                        f"{_brief_block(user_prompt)}"
-                        f"Your scene list totals {total_ms} ms but the video must total "
-                        f"about {target_ms} ms. It is {direction}. Keep every existing "
-                        f"scene's content intact where possible and return the FULL "
-                        f"revised scene list.\n\nCurrent scenes:\n{_scenes_json(doc)}\n\n"
-                        f"Document text:\n{paper_text}"
-                    )
+                    too_short = total_ms < target_ms
+                    if too_short:
+                        # Ask ONLY for the additional scenes — re-emitting the
+                        # whole (large) list risks blowing the output-token cap
+                        # and truncating the JSON.
+                        missing_ms = target_ms - total_ms
+                        summary = "\n".join(
+                            f"{i}: {(s.narration or '')[:60]}" for i, s in enumerate(doc.scenes)
+                        )
+                        fit_prompt = (
+                            f"{_brief_block(user_prompt)}"
+                            f"Your cut totals {total_ms} ms but the video must total about "
+                            f"{target_ms} ms. Design NEW scenes covering more of the document "
+                            f"(~{missing_ms} ms more, each grounded with citations) to slot "
+                            f"between the existing scenes and the closer. Return ONLY the new "
+                            f'scenes as {{"scenes": [...]}} — do NOT repeat existing scenes.'
+                            f"\n\nExisting scenes (index: narration):\n{summary}\n\n"
+                            f"Document text:\n{paper_text}"
+                        )
+                    else:
+                        fit_prompt = (
+                            f"{_brief_block(user_prompt)}"
+                            f"Your scene list totals {total_ms} ms but the video must total "
+                            f"about {target_ms} ms. It is {direction}. Keep every existing "
+                            f"scene's content intact where possible and return the FULL "
+                            f"revised scene list.\n\nCurrent scenes:\n{_scenes_json(doc)}\n\n"
+                            f"Document text:\n{paper_text}"
+                        )
                     try:
                         fres = await designer.arun(input=fit_prompt, stream=False)
                         fixed = _coerce_document(fres.content if fres else None)
@@ -745,7 +797,14 @@ class AgnoPipelineExecutor:
                             agent_id,
                         )
                         break
-                    doc = fixed
+                    if too_short:
+                        # Insert the new scenes before the closer.
+                        if len(doc.scenes) > 1:
+                            doc.scenes = doc.scenes[:-1] + fixed.scenes + doc.scenes[-1:]
+                        else:
+                            doc.scenes = doc.scenes + fixed.scenes
+                    else:
+                        doc = fixed
                     scenes_payload = _dump_scenes(doc, figure_map)
                     yield _event(
                         PipelineEventType.LOG,

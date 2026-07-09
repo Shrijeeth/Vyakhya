@@ -68,6 +68,9 @@ def build_llm_model(
             base_url=base_url,
             fold_system_prompt=fold,
             tool_name_prefix=prefix,
+            # Scene documents are LARGE (per-scene html+css). A low endpoint
+            # default truncates the JSON mid-object; ask for generous output.
+            max_tokens=int(opts.get("maxTokens", 32_768)),
         )
         if fold or prefix:
             model.supports_native_structured_outputs = False
