@@ -945,8 +945,26 @@ class AgnoPipelineExecutor:
                         batch: GenDocument | None = None
                         batch_err = ""
                         for attempt in range(2):
+                            # One batch is one long NON-STREAMED model call
+                            # (minutes on slow endpoints) — heartbeat events so
+                            # the stream shows life, not a stuck stage.
+                            import asyncio as _aio
+
+                            dtask = _aio.ensure_future(_design(bprompt))
+                            waited = 0
+                            while True:
+                                done, _ = await _aio.wait({dtask}, timeout=60)
+                                if done:
+                                    break
+                                waited += 60
+                                yield _event(
+                                    PipelineEventType.LOG,
+                                    f"[{label}] batch {batch_no}/{n_batches} still "
+                                    f"generating… ({waited}s)",
+                                    agent_id,
+                                )
                             try:
-                                batch = await _design(bprompt)
+                                batch = dtask.result()
                             except Exception as exc:  # noqa: BLE001 - retry once
                                 batch_err = str(exc)
                                 log.warning(
