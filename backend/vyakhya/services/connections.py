@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from vyakhya.core.logging import get_logger
 from vyakhya.core.security import mask_secret
 from vyakhya.db.models.config import AgentModelAssignment, AgentSettings, ProviderConnection
-from vyakhya.enums import AgentRole, ConnectionStatus, provider_kind
+from vyakhya.enums import AgentRole, ConnectionStatus, ProviderKind, provider_kind
 from vyakhya.schemas.config import (
     AgentSettingsIO,
     ConnectionCreate,
@@ -16,7 +16,7 @@ from vyakhya.schemas.config import (
     ConnectionUpdate,
 )
 from vyakhya.services.crypto import get_encryptor
-from vyakhya.services.probe import ProbeResult, probe_provider
+from vyakhya.services.probe import ProbeResult, canary_probe_llm, probe_provider
 from vyakhya.utils import new_id, utcnow
 
 log = get_logger(__name__)
@@ -101,11 +101,16 @@ async def remove_connection(session: AsyncSession, connection_id: str) -> bool:
 
 
 async def probe_draft(session: AsyncSession, payload: ConnectionTest) -> ProbeResult:
-    """Probe an unsaved connection (add-connection form) — nothing persisted."""
+    """Probe an unsaved connection (add-connection form) — nothing persisted.
+    LLM drafts get the end-to-end canary probe (system + user prompt through
+    the real model wiring); TTS drafts get the cheap HTTP auth check."""
     log.info("connection probe (draft) provider=%s model=%s", payload.provider.value, payload.model)
-    return await probe_provider(
-        payload.provider, payload.model, (payload.api_key or "").strip(), payload.base_url
-    )
+    key = (payload.api_key or "").strip()
+    if provider_kind(payload.provider) == ProviderKind.LLM:
+        return await canary_probe_llm(
+            payload.provider, payload.model, key, payload.base_url, payload.settings
+        )
+    return await probe_provider(payload.provider, payload.model, key, payload.base_url)
 
 
 async def test_connection(
@@ -120,8 +125,14 @@ async def test_connection(
     if conn.api_key_enc is not None:
         encryptor = await get_encryptor(session)
         api_key = encryptor.decrypt(conn.api_key_enc)
-    result = await probe_provider(conn.provider, conn.model, api_key, conn.base_url)
-    conn.status = ConnectionStatus.OK if result.success else ConnectionStatus.ERROR
+    if conn.kind == ProviderKind.LLM:
+        result = await canary_probe_llm(
+            conn.provider, conn.model, api_key, conn.base_url, conn.settings
+        )
+    else:
+        result = await probe_provider(conn.provider, conn.model, api_key, conn.base_url)
+    ok = result.success and result.system_honored is not False
+    conn.status = ConnectionStatus.OK if ok else ConnectionStatus.ERROR
     conn.last_tested_at = utcnow()
     await session.flush()
     log.info(

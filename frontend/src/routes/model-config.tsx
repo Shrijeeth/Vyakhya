@@ -181,6 +181,67 @@ function StatusPill({ status }: { status: ProviderConnection["status"] }) {
   );
 }
 
+function ProbeChip({ label, ok }: { label: string; ok: boolean | null | undefined }) {
+  if (ok === null || ok === undefined) return null;
+  return (
+    <span
+      className={
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 " +
+        (ok
+          ? "border-[color:var(--success)]/40 text-[color:var(--success)]"
+          : "border-destructive/40 text-destructive")
+      }
+    >
+      {ok ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+      {label}
+    </span>
+  );
+}
+
+// Canary-probe result: an LLM test runs a real completion with a codeword
+// system prompt + trivial user question, so the operator can see whether
+// system and user prompts actually reach the model through the endpoint.
+function TestResultCard({ result }: { result: ConnectionTestResult }) {
+  return (
+    <div
+      className={
+        "mt-3 space-y-1.5 rounded-md border px-3 py-2 text-xs " +
+        (result.success ? "border-[color:var(--success)]/40" : "border-destructive/40")
+      }
+    >
+      <div
+        className={
+          "flex items-center gap-2 " +
+          (result.success ? "text-[color:var(--success)]" : "text-destructive")
+        }
+      >
+        {result.success ? (
+          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+        ) : (
+          <XCircle className="h-3.5 w-3.5 shrink-0" />
+        )}
+        <span className="break-all">
+          {result.success
+            ? `Connected in ${result.latencyMs}ms${result.detail ? ` · ${result.detail}` : ""}`
+            : (result.error ?? "Connection failed")}
+        </span>
+      </div>
+      {result.success &&
+        (result.systemHonored !== undefined || result.userHonored !== undefined) && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <ProbeChip label="System prompt honored" ok={result.systemHonored} />
+            <ProbeChip label="User prompt honored" ok={result.userHonored} />
+          </div>
+        )}
+      {result.response && (
+        <p className="line-clamp-2 break-all font-mono text-[10px] text-muted-foreground">
+          {result.response}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function AddConnectionForm({ onDone }: { onDone: () => void }) {
   const [provider, setProvider] = useState<ProviderId>("openai");
   const [model, setModel] = useState(LLM_PROVIDERS[0].models[0]);
@@ -209,11 +270,21 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
   });
   const testMutation = useMutation({
     mutationFn: () =>
-      testConnectionDraft({ provider, model, apiKey, baseUrl: baseUrl || undefined }),
+      testConnectionDraft({
+        provider,
+        model,
+        apiKey,
+        baseUrl: baseUrl || undefined,
+        settings: PROVIDERS.find((p) => p.id === provider)?.custom
+          ? { foldSystemPrompt: foldSystem, toolNamePrefix: toolPrefix.trim() }
+          : undefined,
+      }),
     onSuccess: (r) => {
       setTestResult(r);
-      if (r.success) toast.success(`Connection OK (${r.latencyMs}ms)`);
-      else toast.error(r.error ?? "Connection failed");
+      if (!r.success) toast.error(r.error ?? "Connection failed");
+      else if (r.systemHonored === false)
+        toast.warning("Connected, but the system prompt was NOT honored — try Fold system prompt");
+      else toast.success(`Connection OK (${r.latencyMs}ms)`);
     },
   });
   const providerMeta = PROVIDERS.find((p) => p.id === provider);
@@ -339,27 +410,7 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
           </div>
         )}
       </div>
-      {testResult && (
-        <div
-          className={
-            "mt-3 flex items-center gap-2 rounded-md border px-3 py-2 text-xs " +
-            (testResult.success
-              ? "border-[color:var(--success)]/40 text-[color:var(--success)]"
-              : "border-destructive/40 text-destructive")
-          }
-        >
-          {testResult.success ? (
-            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-          ) : (
-            <XCircle className="h-3.5 w-3.5 shrink-0" />
-          )}
-          <span className="break-all">
-            {testResult.success
-              ? `Connected in ${testResult.latencyMs}ms${testResult.detail ? ` · ${testResult.detail}` : ""}`
-              : (testResult.error ?? "Connection failed")}
-          </span>
-        </div>
-      )}
+      {testResult && <TestResultCard result={testResult} />}
       <div className="mt-3 flex justify-end gap-2">
         <Button variant="ghost" onClick={onDone}>
           Cancel
@@ -518,8 +569,12 @@ function ModelConfigPage() {
     mutationFn: (id: string) => testConnection(id),
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ["connections"] });
-      if (r.success) toast.success(`Connection OK (${r.latencyMs}ms)`);
-      else toast.error(r.error ?? "Connection failed");
+      if (!r.success) toast.error(r.error ?? "Connection failed");
+      else if (r.systemHonored === false)
+        toast.warning(
+          "Connected, but the system prompt was NOT honored — edit the connection and enable Fold system prompt",
+        );
+      else toast.success(`Connection OK (${r.latencyMs}ms)`);
     },
   });
   const removeMut = useMutation({

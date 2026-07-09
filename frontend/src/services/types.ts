@@ -124,6 +124,11 @@ export interface ConnectionTestResult {
   latencyMs: number;
   detail?: string;
   error?: string;
+  // Canary probe (LLM): did the reply honor the system codeword / answer
+  // the user question? Null for TTS connections.
+  systemHonored?: boolean | null;
+  userHonored?: boolean | null;
+  response?: string | null;
 }
 
 export type AgentRole =

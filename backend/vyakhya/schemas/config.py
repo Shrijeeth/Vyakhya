@@ -39,6 +39,7 @@ class ConnectionTest(CamelModel):
     model: str
     api_key: str = ""
     base_url: str | None = None
+    settings: dict = Field(default_factory=dict)
 
 
 class ConnectionTestResult(CamelModel):
@@ -46,6 +47,10 @@ class ConnectionTestResult(CamelModel):
     latency_ms: int
     detail: str | None = None
     error: str | None = None
+    # Canary probe (LLM): whether the system codeword / user answer appeared.
+    system_honored: bool | None = None
+    user_honored: bool | None = None
+    response: str | None = None
 
 
 class AgentModelAssignmentOut(CamelModel):

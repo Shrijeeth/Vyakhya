@@ -28,6 +28,9 @@ def _result(probe: ProbeResult) -> ConnectionTestResult:
         latency_ms=probe.latency_ms,
         detail=probe.detail,
         error=probe.error,
+        system_honored=probe.system_honored,
+        user_honored=probe.user_honored,
+        response=probe.response,
     )
 
 
