@@ -126,3 +126,12 @@ def test_scene_lenient_cosmetic_enums():
     )
     assert s.caption_style is CaptionStyle.MINIMAL
     assert s.transition is SceneTransition.FADE
+
+
+def test_designer_skill_text_inlined():
+    from vyakhya.agents.skills import get_designer_skill_text
+
+    text = get_designer_skill_text()
+    assert "Skill: hyperframes-core" in text
+    assert "Skill: faceless-explainer" in text
+    assert len(text) > 10_000

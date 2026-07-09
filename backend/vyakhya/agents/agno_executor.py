@@ -21,7 +21,7 @@ from sqlalchemy import select
 
 from vyakhya.agents.model_factory import build_llm_model
 from vyakhya.agents.pipeline import AGENT_SEQUENCE, _event
-from vyakhya.agents.skills import get_hyperframes_skills
+from vyakhya.agents.skills import get_designer_skill_text
 from vyakhya.core.database import get_sessionmaker
 from vyakhya.core.logging import get_logger
 from vyakhya.db.models.config import AgentModelAssignment, ProviderConnection
@@ -226,11 +226,9 @@ _DESIGNER_INSTRUCTIONS = [
     "THE USER BRIEF IS LAW. If it asks for a story, tell a story; if it says "
     "layman, write for a layman. Its structure, tone, and style override "
     "everything else here.",
-    "Read the HyperFrames skills (get_skill_instructions: 'hyperframes-core', "
-    "'faceless-explainer', 'hyperframes-animation', 'hyperframes-creative') "
-    "and design like their examples: rich compositions — diagrams, CSS 3D "
-    "(perspective/rotate3d), charts drawn with divs/SVG, big numbers, figure "
-    "panels — not text slides.",
+    "Design like the HyperFrames authoring guides included below: rich "
+    "compositions — diagrams, CSS 3D (perspective/rotate3d), charts drawn "
+    "with divs/SVG, big numbers, figure panels — not text slides.",
     "Every scene is visualType custom.html with params {html, css}: you author "
     "the full 1920x1080 frame, with a themed background (never the default). "
     "Use the provided figures via their exact <img> URLs; never invent URLs.",
@@ -681,7 +679,6 @@ class AgnoPipelineExecutor:
             )
 
         model = build_llm_model(conn.provider, conn.model, api_key, conn.base_url, conn.settings)
-        skills = get_hyperframes_skills()
 
         # Every agent gets structured output via a parser_model pass. The
         # parser is its own role in Model Config — assign a FAST model there
@@ -698,11 +695,15 @@ class AgnoPipelineExecutor:
         designer = Agent(
             name="Visual Designer",
             model=model,
-            skills=skills,
-            instructions=[*_DESIGNER_INSTRUCTIONS, _length_instruction(target_min, tts_enabled)],
-            # The designer keeps its skill tools; the parser pass (no tools)
-            # converts its answer via structured output. Batched generation
-            # keeps each reply small, so the parser pass is cheap.
+            # The HyperFrames guides are INLINED (no skills= tools): tool-based
+            # skill loading costs 4-5 model round trips per call, while the
+            # guides are only ~11k prompt tokens. One call in, one JSON out;
+            # the parser pass (no tools) converts it via structured output.
+            instructions=[
+                *_DESIGNER_INSTRUCTIONS,
+                _length_instruction(target_min, tts_enabled),
+                get_designer_skill_text(),
+            ],
             output_schema=GenDocument,
             parser_model=_parser_model(),
             markdown=False,

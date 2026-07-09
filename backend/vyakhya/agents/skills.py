@@ -46,3 +46,30 @@ def get_hyperframes_skills():  # noqa: ANN201 - agno.skills.Skills, imported laz
     skills = Skills(loaders=[LocalSkills(path=str(path), validate=False)])
     log.info("hyperframes skills loaded from %s: %s", path, skills.get_skill_names())
     return skills
+
+
+# The designer's authoring guides, inlined into its system prompt. Tool-based
+# skill loading (get_skill_instructions) costs 4-5 extra model round trips PER
+# CALL — brutal on slow endpoints — while these four files are only ~11k
+# tokens of prompt, which is cheap.
+_DESIGNER_SKILLS = (
+    "hyperframes-core",
+    "faceless-explainer",
+    "hyperframes-animation",
+    "hyperframes-creative",
+)
+
+
+@lru_cache
+def get_designer_skill_text() -> str:
+    """The four HyperFrames authoring guides concatenated for direct inclusion
+    in the visual designer's instructions."""
+    path = skills_dir()
+    parts: list[str] = []
+    for name in _DESIGNER_SKILLS:
+        doc = path / name / "SKILL.md"
+        try:
+            parts.append(f"## Skill: {name}\n\n{doc.read_text(encoding='utf-8')}")
+        except OSError as exc:
+            log.warning("designer skill %s unreadable: %s", name, exc)
+    return "\n\n".join(parts)
