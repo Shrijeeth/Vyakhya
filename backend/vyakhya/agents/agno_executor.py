@@ -91,6 +91,9 @@ class GenSceneParams(BaseModel):
 class GenScene(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
+    # 0-based position — used by revision replies to patch scenes in place
+    # (revisions return ONLY changed scenes, never the whole list).
+    index: int | None = None
     # Optional: with TTS off the designer is told narration may be omitted.
     narration: str = ""
     visual_type: VisualType = Field(alias="visualType")
@@ -418,6 +421,25 @@ def _coerce_document(content: object) -> GenDocument | None:
     return GenDocument(scenes=scenes)
 
 
+def _patch_scenes(doc: GenDocument, revised: GenDocument) -> int:
+    """Apply a partial revision: each revised scene replaces the scene at its
+    0-based ``index``. Returns how many were patched. A reply without indexes
+    is applied wholesale ONLY when it is the same size as the current cut —
+    a shorter unindexed reply is a truncated/partial list, never a new cut."""
+    indexed = [sc for sc in revised.scenes if sc.index is not None]
+    if indexed:
+        patched = 0
+        for sc in indexed:
+            if 0 <= sc.index < len(doc.scenes):
+                doc.scenes[sc.index] = sc
+                patched += 1
+        return patched
+    if len(revised.scenes) >= len(doc.scenes):
+        doc.scenes = revised.scenes
+        return len(revised.scenes)
+    return 0
+
+
 def _normalize_scene_params(scene: GenScene) -> None:
     """Repair params the model filed under a sibling key — e.g. kinetic.type
     with `tokens` instead of `text` — so every visual renders non-blank."""
@@ -484,7 +506,7 @@ def _screenshot_doc(project_id: str, title: str, aspect: str, scenes_payload: li
         "id": project_id,
         "title": title,
         "aspectRatio": aspect,
-        "scenes": [{"id": f"rev{i}", "index": i, **s} for i, s in enumerate(scenes_payload)],
+        "scenes": [{"id": f"rev{i}", **s, "index": i} for i, s in enumerate(scenes_payload)],
     }
 
 
@@ -891,18 +913,21 @@ class AgnoPipelineExecutor:
                     except Exception as exc:  # noqa: BLE001 - keep current doc on failure
                         log.warning("designer revision failed: %s", exc)
                         revised = None
-                    if revised is not None and revised.scenes:
-                        doc = revised
+                    patched = (
+                        _patch_scenes(doc, revised) if revised is not None and revised.scenes else 0
+                    )
+                    if patched:
                         scenes_payload = _dump_scenes(doc, figure_map)
                         yield _event(
                             PipelineEventType.LOG,
-                            f"[{label}] designer revised → {len(doc.scenes)} scenes",
+                            f"[{label}] designer revised {patched} scene(s) in place "
+                            f"(cut stays {len(doc.scenes)} scenes)",
                             agent_id,
                         )
                     else:
                         yield _event(
                             PipelineEventType.LOG,
-                            f"[{label}] revision produced no valid scenes — keeping current cut",
+                            f"[{label}] revision produced no applicable scenes — keeping cut",
                             agent_id,
                         )
 
@@ -1048,12 +1073,13 @@ class AgnoPipelineExecutor:
                         f"{_brief_block(user_prompt)}"
                         "The art director reviewed SCREENSHOTS of your rendered scenes "
                         "and rejected the cut. Fix EXACTLY the flagged scenes' html/css "
-                        "(layout, overlap, sizing, backgrounds) and keep everything else "
-                        "unchanged. Remember: full-frame themed backgrounds, no "
-                        "overlapping text/images, complete visual compositions.\n\n"
+                        "(layout, overlap, sizing, backgrounds). Remember: full-frame "
+                        "themed backgrounds, no overlapping text/images, complete "
+                        "visual compositions.\n\n"
                         f"Issues:\n{issue_lines}\n\n"
                         f"Current scenes:\n{_scenes_json(doc)}\n\n"
-                        "Return the FULL revised scene list."
+                        "Return ONLY the fixed scenes, each carrying its 0-based "
+                        '"index" from the issue list — do NOT resend unchanged scenes.'
                     )
                     try:
                         vres2 = await designer.arun(input=visual_prompt, stream=False)
@@ -1061,18 +1087,21 @@ class AgnoPipelineExecutor:
                     except Exception as exc:  # noqa: BLE001 - keep current doc
                         log.warning("visual revision failed: %s", exc)
                         revised = None
-                    if revised is not None and revised.scenes:
-                        doc = revised
+                    patched = (
+                        _patch_scenes(doc, revised) if revised is not None and revised.scenes else 0
+                    )
+                    if patched:
                         scenes_payload = _dump_scenes(doc, figure_map)
                         yield _event(
                             PipelineEventType.LOG,
-                            f"[{label}] designer fixed visuals → {len(doc.scenes)} scenes",
+                            f"[{label}] designer fixed {patched} scene(s) in place "
+                            f"(cut stays {len(doc.scenes)} scenes)",
                             agent_id,
                         )
                     else:
                         yield _event(
                             PipelineEventType.LOG,
-                            f"[{label}] visual revision produced no valid scenes — keeping cut",
+                            f"[{label}] visual revision not applicable — keeping cut",
                             agent_id,
                         )
                         break
