@@ -2,14 +2,20 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Save } from "lucide-react";
-import { getRenderSettings, saveRenderSettings } from "@/services/api";
-import type { RenderSettings } from "@/services/types";
+import { Save, ChevronDown } from "lucide-react";
+import {
+  getRenderSettings,
+  saveRenderSettings,
+  getAgentSettings,
+  saveAgentSettings,
+} from "@/services/api";
+import type { RenderSettings, AgentSettings } from "@/services/types";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -18,11 +24,125 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
 
-export const Route = createFileRoute("/render-settings")({
-  component: RenderSettingsPage,
+export const Route = createFileRoute("/settings")({
+  component: SettingsPage,
 });
+
+function SettingsPage() {
+  return (
+    <div className="mx-auto max-w-4xl px-8 py-10">
+      <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Global defaults for rendering and the agent pipeline.
+      </p>
+      <Tabs defaultValue="render" className="mt-6">
+        <TabsList>
+          <TabsTrigger value="render">Render</TabsTrigger>
+          <TabsTrigger value="agents">Agents</TabsTrigger>
+        </TabsList>
+        <TabsContent value="render">
+          <RenderSettingsTab />
+        </TabsContent>
+        <TabsContent value="agents">
+          <AgentSettingsTab />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// ── Agents ────────────────────────────────────────────────────────────────────
+
+const AGENT_FIELDS: {
+  key: keyof AgentSettings;
+  label: string;
+  hint: string;
+  min: number;
+  max: number;
+}[] = [
+  {
+    key: "verifierMaxRounds",
+    label: "Fact verifier rounds",
+    hint: "Verify → designer revision cycles before proceeding.",
+    min: 1,
+    max: 10,
+  },
+  {
+    key: "visualMaxRounds",
+    label: "Visual review round cap",
+    hint: "Hard cap on screenshot-review cycles (cost backstop).",
+    min: 1,
+    max: 20,
+  },
+  {
+    key: "visualStallRounds",
+    label: "Visual review stall limit",
+    hint: "Stop after this many consecutive rounds that fix no major issue.",
+    min: 1,
+    max: 5,
+  },
+  {
+    key: "lengthFitRounds",
+    label: "Length fit rounds",
+    hint: "Designer passes to hit the target duration (0 disables).",
+    min: 0,
+    max: 5,
+  },
+];
+
+function AgentSettingsTab() {
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["agent-settings"], queryFn: getAgentSettings });
+  const [local, setLocal] = useState<AgentSettings | null>(null);
+  const settings = local ?? data ?? null;
+
+  const saveMut = useMutation({
+    mutationFn: (s: AgentSettings) => saveAgentSettings(s),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agent-settings"] });
+      toast.success("Agent settings saved");
+    },
+  });
+
+  if (!settings) return null;
+
+  return (
+    <div className="mt-4 space-y-6">
+      <section className="rounded-lg border border-border bg-card p-5">
+        <div className="mb-1 flex items-center justify-between">
+          <div className="text-sm font-semibold">Pipeline loops</div>
+          <Button size="sm" onClick={() => saveMut.mutate(settings)} disabled={saveMut.isPending}>
+            <Save className="mr-1.5 h-3.5 w-3.5" />
+            Save
+          </Button>
+        </div>
+        <p className="mb-5 text-[11px] text-muted-foreground">
+          Applied to the next pipeline run. Higher values improve quality but cost more model calls.
+        </p>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-5">
+          {AGENT_FIELDS.map((f) => (
+            <div key={f.key} className="space-y-1.5">
+              <Label>
+                {f.label} · {settings[f.key]}
+              </Label>
+              <Slider
+                min={f.min}
+                max={f.max}
+                step={1}
+                value={[settings[f.key]]}
+                onValueChange={(v) => setLocal({ ...settings, [f.key]: v[0] })}
+              />
+              <p className="text-[11px] text-muted-foreground">{f.hint}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
 
 const PRESETS = [
   { label: "1080p 16:9", width: 1920, height: 1080 },
@@ -31,7 +151,7 @@ const PRESETS = [
   { label: "1080×1080 1:1", width: 1080, height: 1080 },
 ];
 
-function RenderSettingsPage() {
+function RenderSettingsTab() {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["render-settings"], queryFn: getRenderSettings });
   const [local, setLocal] = useState<RenderSettings | null>(null);
@@ -45,7 +165,7 @@ function RenderSettingsPage() {
     mutationFn: (s: RenderSettings) => saveRenderSettings(s),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["render-settings"] });
-      toast.success("Settings saved");
+      toast.success("Render settings saved");
     },
   });
 
@@ -56,21 +176,18 @@ function RenderSettingsPage() {
   );
 
   return (
-    <div className="mx-auto max-w-4xl px-8 py-10">
-      <div className="mb-1 flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Render settings</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Global export defaults — start renders from a project's editor (Export).
-          </p>
-        </div>
+    <div className="mt-4">
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Global export defaults — start renders from a project's editor (Export).
+        </p>
         <Button onClick={() => saveMut.mutate(settings)} disabled={saveMut.isPending}>
           <Save className="mr-1.5 h-4 w-4" />
           Save defaults
         </Button>
       </div>
 
-      <div className="mt-8 space-y-6">
+      <div className="space-y-6">
         <section className="rounded-lg border border-border bg-card p-5">
           <div className="mb-4 text-sm font-semibold">Output</div>
           <div className="grid grid-cols-2 gap-4">

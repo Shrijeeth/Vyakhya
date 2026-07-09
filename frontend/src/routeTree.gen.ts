@@ -9,7 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as RenderSettingsRouteImport } from './routes/render-settings'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ModelConfigRouteImport } from './routes/model-config'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AgentPromptsRouteImport } from './routes/agent-prompts'
@@ -17,9 +17,9 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProjectsProjectIdPipelineRouteImport } from './routes/projects.$projectId.pipeline'
 import { Route as ProjectsProjectIdEditorRouteImport } from './routes/projects.$projectId.editor'
 
-const RenderSettingsRoute = RenderSettingsRouteImport.update({
-  id: '/render-settings',
-  path: '/render-settings',
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ModelConfigRoute = ModelConfigRouteImport.update({
@@ -59,7 +59,7 @@ export interface FileRoutesByFullPath {
   '/agent-prompts': typeof AgentPromptsRoute
   '/dashboard': typeof DashboardRoute
   '/model-config': typeof ModelConfigRoute
-  '/render-settings': typeof RenderSettingsRoute
+  '/settings': typeof SettingsRoute
   '/projects/$projectId/editor': typeof ProjectsProjectIdEditorRoute
   '/projects/$projectId/pipeline': typeof ProjectsProjectIdPipelineRoute
 }
@@ -68,7 +68,7 @@ export interface FileRoutesByTo {
   '/agent-prompts': typeof AgentPromptsRoute
   '/dashboard': typeof DashboardRoute
   '/model-config': typeof ModelConfigRoute
-  '/render-settings': typeof RenderSettingsRoute
+  '/settings': typeof SettingsRoute
   '/projects/$projectId/editor': typeof ProjectsProjectIdEditorRoute
   '/projects/$projectId/pipeline': typeof ProjectsProjectIdPipelineRoute
 }
@@ -78,7 +78,7 @@ export interface FileRoutesById {
   '/agent-prompts': typeof AgentPromptsRoute
   '/dashboard': typeof DashboardRoute
   '/model-config': typeof ModelConfigRoute
-  '/render-settings': typeof RenderSettingsRoute
+  '/settings': typeof SettingsRoute
   '/projects/$projectId/editor': typeof ProjectsProjectIdEditorRoute
   '/projects/$projectId/pipeline': typeof ProjectsProjectIdPipelineRoute
 }
@@ -89,7 +89,7 @@ export interface FileRouteTypes {
     | '/agent-prompts'
     | '/dashboard'
     | '/model-config'
-    | '/render-settings'
+    | '/settings'
     | '/projects/$projectId/editor'
     | '/projects/$projectId/pipeline'
   fileRoutesByTo: FileRoutesByTo
@@ -98,7 +98,7 @@ export interface FileRouteTypes {
     | '/agent-prompts'
     | '/dashboard'
     | '/model-config'
-    | '/render-settings'
+    | '/settings'
     | '/projects/$projectId/editor'
     | '/projects/$projectId/pipeline'
   id:
@@ -107,7 +107,7 @@ export interface FileRouteTypes {
     | '/agent-prompts'
     | '/dashboard'
     | '/model-config'
-    | '/render-settings'
+    | '/settings'
     | '/projects/$projectId/editor'
     | '/projects/$projectId/pipeline'
   fileRoutesById: FileRoutesById
@@ -117,18 +117,18 @@ export interface RootRouteChildren {
   AgentPromptsRoute: typeof AgentPromptsRoute
   DashboardRoute: typeof DashboardRoute
   ModelConfigRoute: typeof ModelConfigRoute
-  RenderSettingsRoute: typeof RenderSettingsRoute
+  SettingsRoute: typeof SettingsRoute
   ProjectsProjectIdEditorRoute: typeof ProjectsProjectIdEditorRoute
   ProjectsProjectIdPipelineRoute: typeof ProjectsProjectIdPipelineRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/render-settings': {
-      id: '/render-settings'
-      path: '/render-settings'
-      fullPath: '/render-settings'
-      preLoaderRoute: typeof RenderSettingsRouteImport
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/model-config': {
@@ -181,7 +181,7 @@ const rootRouteChildren: RootRouteChildren = {
   AgentPromptsRoute: AgentPromptsRoute,
   DashboardRoute: DashboardRoute,
   ModelConfigRoute: ModelConfigRoute,
-  RenderSettingsRoute: RenderSettingsRoute,
+  SettingsRoute: SettingsRoute,
   ProjectsProjectIdEditorRoute: ProjectsProjectIdEditorRoute,
   ProjectsProjectIdPipelineRoute: ProjectsProjectIdPipelineRoute,
 }

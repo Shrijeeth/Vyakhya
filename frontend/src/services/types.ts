@@ -94,7 +94,16 @@ export interface EditorProject {
 
 // LLM providers (agent reasoning + vision) and TTS providers (narration).
 export type ProviderId =
-  "openai" | "anthropic" | "gemini" | "groq" | "ollama" | "hyperframes" | "elevenlabs" | "deepgram";
+  | "openai"
+  | "anthropic"
+  | "gemini"
+  | "groq"
+  | "ollama"
+  | "hyperframes"
+  | "elevenlabs"
+  | "deepgram"
+  | "custom"
+  | "custom_tts";
 
 export type ProviderKind = "llm" | "tts";
 
@@ -155,4 +164,12 @@ export interface RenderSettings {
   audioMasterDb: number;
   audioNarrationDb: number;
   audioMusicDb: number;
+}
+
+// Pipeline loop knobs (Settings → Agents).
+export interface AgentSettings {
+  verifierMaxRounds: number;
+  visualMaxRounds: number;
+  visualStallRounds: number;
+  lengthFitRounds: number;
 }

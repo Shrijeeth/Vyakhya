@@ -19,7 +19,7 @@ const NAV: { to: string; label: string; icon: typeof FolderKanban; exact?: boole
   { to: "/", label: "Projects", icon: FolderKanban, exact: true },
   { to: "/model-config", label: "Model Config", icon: Settings2 },
   { to: "/agent-prompts", label: "Agent Prompts", icon: MessageSquareCode },
-  { to: "/render-settings", label: "Render Settings", icon: FileText },
+  { to: "/settings", label: "Settings", icon: FileText },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {

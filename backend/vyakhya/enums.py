@@ -102,12 +102,18 @@ class ProviderId(StrEnum):
     HYPERFRAMES = "hyperframes"  # keyless (built-in)
     ELEVENLABS = "elevenlabs"
     DEEPGRAM = "deepgram"
+    # Bring-your-own OpenAI-compatible endpoints (model + base URL entered
+    # by the user): /chat/completions for LLM, /audio/speech for TTS.
+    CUSTOM = "custom"
+    CUSTOM_TTS = "custom_tts"
 
 
 # The kind is a property of the provider — a single provider_connections table
 # stores both; `kind` is persisted (denormalized) for cheap filtering + a DB
 # CHECK that the narrator role only binds a TTS connection.
-_TTS_PROVIDERS = frozenset({ProviderId.HYPERFRAMES, ProviderId.ELEVENLABS, ProviderId.DEEPGRAM})
+_TTS_PROVIDERS = frozenset(
+    {ProviderId.HYPERFRAMES, ProviderId.ELEVENLABS, ProviderId.DEEPGRAM, ProviderId.CUSTOM_TTS}
+)
 # Keyless providers run locally / built-in and need no API key.
 KEYLESS_PROVIDERS = frozenset({ProviderId.OLLAMA, ProviderId.HYPERFRAMES})
 

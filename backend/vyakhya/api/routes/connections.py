@@ -8,6 +8,7 @@ from vyakhya.api.deps import SessionDep
 from vyakhya.enums import AgentRole
 from vyakhya.schemas.config import (
     AgentModelAssignmentOut,
+    AgentSettingsIO,
     AssignmentUpdate,
     ConnectionCreate,
     ConnectionTest,
@@ -79,3 +80,13 @@ async def update_assignment(
 ) -> list[AgentModelAssignmentOut]:
     rows = await svc.update_assignment(session, role, payload.connection_id)
     return [AgentModelAssignmentOut.model_validate(r) for r in rows]
+
+
+@router.get("/agents/settings", response_model=AgentSettingsIO)
+async def get_agent_settings(session: SessionDep) -> AgentSettingsIO:
+    return AgentSettingsIO.model_validate(await svc.get_agent_settings(session))
+
+
+@router.put("/agents/settings", response_model=AgentSettingsIO)
+async def save_agent_settings(payload: AgentSettingsIO, session: SessionDep) -> AgentSettingsIO:
+    return AgentSettingsIO.model_validate(await svc.save_agent_settings(session, payload))

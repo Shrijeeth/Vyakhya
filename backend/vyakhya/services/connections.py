@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from vyakhya.core.logging import get_logger
 from vyakhya.core.security import mask_secret
-from vyakhya.db.models.config import AgentModelAssignment, ProviderConnection
+from vyakhya.db.models.config import AgentModelAssignment, AgentSettings, ProviderConnection
 from vyakhya.enums import AgentRole, ConnectionStatus, provider_kind
-from vyakhya.schemas.config import ConnectionCreate, ConnectionTest
+from vyakhya.schemas.config import AgentSettingsIO, ConnectionCreate, ConnectionTest
 from vyakhya.services.crypto import get_encryptor
 from vyakhya.services.probe import ProbeResult, probe_provider
 from vyakhya.utils import new_id, utcnow
@@ -128,6 +128,24 @@ async def update_assignment(
     return await list_assignments(session)
 
 
+async def get_agent_settings(session: AsyncSession) -> AgentSettings:
+    """The singleton agent-pipeline settings row (created on first read)."""
+    row = await session.get(AgentSettings, True)
+    if row is None:
+        row = AgentSettings(id=True)
+        session.add(row)
+        await session.flush()
+    return row
+
+
+async def save_agent_settings(session: AsyncSession, payload: AgentSettingsIO) -> AgentSettings:
+    row = await get_agent_settings(session)
+    for field, value in payload.model_dump().items():
+        setattr(row, field, value)
+    await session.flush()
+    return row
+
+
 __all__ = [
     "list_connections",
     "create_connection",
@@ -137,4 +155,6 @@ __all__ = [
     "list_assignments",
     "update_assignment",
     "delete",
+    "get_agent_settings",
+    "save_agent_settings",
 ]

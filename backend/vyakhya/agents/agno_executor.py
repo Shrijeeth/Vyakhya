@@ -165,55 +165,32 @@ _DESIGN_REVIEWER_INSTRUCTIONS = [
     "Set approved=true ONLY when there are no major issues.",
 ]
 
+# Deliberately lean: the USER BRIEF and the HyperFrames skills carry the
+# creative direction; the vision reviewer enforces visual quality. Piling
+# doctrine here dilutes the brief and flattens creativity.
 _DESIGNER_INSTRUCTIONS = [
-    "You are the visual designer for Vyakhya: it turns ANY document (paper, "
-    "report, article, spec, book chapter…) into an explainer video rendered "
-    "by HyperFrames. You are a motion designer, not a slide-deck generator — "
-    "every project gets its own art direction.",
-    "When the prompt carries a USER BRIEF, it is the highest-priority "
-    "instruction: its requested story structure, tone, and style override "
-    "every default below. Re-read it before each scene.",
-    "First read the HyperFrames skills (get_skill_instructions for "
-    "'hyperframes-core', 'faceless-explainer', 'hyperframes-animation', "
-    "'hyperframes-creative') and design with those techniques.",
-    "Every scene MUST be visualType custom.html with params {html, css} — you "
-    "author the full frame yourself. Other visual types are fallbacks only; "
-    "do not emit them.",
-    "Theme: before any scene, pick a palette, type scale and background "
-    "treatment from the document's topic and the user's brief. Every scene "
-    "gets a full-frame themed background (layered gradients, drifting shapes, "
-    "glows — slow, finite animation). One coherent film; vary each scene's "
-    "layout (hero type, split, diagram, big number, figure spotlight…).",
-    "Layout rules (a reviewer SEES rendered screenshots and rejects "
-    "violations): nothing overlaps — use flexbox/grid with gaps, never text "
-    "absolutely-positioned over images or text (use a solid panel if text "
-    "must sit on imagery); every scene is a complete composition (headline + "
-    "supporting visual), never a bare sentence or empty frame; keep ~6% "
-    "padding, images max-height ~60% of frame; big legible text (headlines "
-    "≥64px, body ≥30px at 1920x1080) with strong contrast.",
-    "Custom scene contract: no <script>; no external assets except the given "
-    "figure URLs; fully self-styled (every class defined in css or inline, "
-    "slug-prefixed per scene); all animations finite with fill-mode both; "
-    "every animation-delay written as calc(var(--t0, 0s) + <offset>) so the "
-    "scene is seekable; root element fills the frame (width/height 100%). "
-    "Size with % — vh/vw refer to the browser viewport, not the frame. Empty "
-    "decorative divs collapse to zero: give every shape explicit width AND "
-    "height.",
-    "Motion: smooth long-tail eases (ease-out / cubic-bezier(.22,1,.36,1)); "
-    "never bounce/elastic. Reveal elements sequentially across the scene's "
-    "duration — don't front-load, don't exit mid-scene, no infinite loops or "
-    "breathing/pulsing.",
-    "On-screen text is short motion-graphics copy (hero word, term, stat — "
-    "≤6-word headlines, ≤4 support items); the full explanation lives in "
-    "narration, paced ~2.6–3 words/second — size durationMs to it.",
-    "Use the provided extracted figures via their exact URLs (<img> in its "
-    "own panel, caption below or beside — never across it). Never invent "
-    "URLs.",
-    "Story: don't paraphrase the document in order — open with a hook, build "
-    "3–6 core ideas (setup → evidence → payoff), land a takeaway. Pick 2–3 "
-    "transitions for the whole video and repeat them (scene 1 = cut).",
-    "Every scene needs at least one citation pointing at a real span of the "
-    "document (e.g. '§3.2, p. 4').",
+    "You are the visual designer for Vyakhya: it turns any document into an "
+    "explainer video rendered by HyperFrames.",
+    "THE USER BRIEF IS LAW. If it asks for a story, tell a story; if it says "
+    "layman, write for a layman. Its structure, tone, and style override "
+    "everything else here.",
+    "Read the HyperFrames skills (get_skill_instructions: 'hyperframes-core', "
+    "'faceless-explainer', 'hyperframes-animation', 'hyperframes-creative') "
+    "and design like their examples: rich compositions — diagrams, CSS 3D "
+    "(perspective/rotate3d), charts drawn with divs/SVG, big numbers, figure "
+    "panels — not text slides.",
+    "Every scene is visualType custom.html with params {html, css}: you author "
+    "the full 1920x1080 frame, with a themed background (never the default). "
+    "Use the provided figures via their exact <img> URLs; never invent URLs.",
+    "Hard contract: no <script>; every class you use is defined in the css "
+    "param (slug-prefixed per scene); animations are finite with fill-mode "
+    "both and delays written as calc(var(--t0, 0s) + <offset>); size with % "
+    "(vh/vw are the browser viewport, not the frame); give empty decorative "
+    "divs explicit width and height; lay out with flexbox/grid so nothing "
+    "overlaps; keep text large and high-contrast.",
+    "Narration carries the explanation (~2.7 words/sec — size durationMs to "
+    "it); on-screen text stays short and punchy.",
+    "Every scene cites a real span of the document (e.g. '§3.2, p. 4').",
 ]
 
 _RESEARCHER_INSTRUCTIONS = [
@@ -262,9 +239,6 @@ _VERIFIER_INSTRUCTIONS = [
     "Set approved=true ONLY when there are no 'fail' flags. When not approved, put "
     "concrete, actionable fixes in revisionNotes (which scene, what to change).",
 ]
-
-# Verify → revise loop bound: up to N verification rounds (N-1 designer revisions).
-_MAX_VERIFY_ROUNDS = 3
 
 # Final cut must land within this fraction of the requested length.
 _DURATION_TOLERANCE = 0.15
@@ -526,6 +500,13 @@ class AgnoPipelineExecutor:
             user_prompt = (project.user_prompt or "").strip()
             figures: list[dict] = list(project.figures or [])
             paper_file_url = project.paper_file_url
+            from vyakhya.services.connections import get_agent_settings
+
+            aset = await get_agent_settings(session)
+            verifier_rounds = aset.verifier_max_rounds
+            visual_max_rounds = aset.visual_max_rounds
+            visual_stall_rounds = aset.visual_stall_rounds
+            length_fit_rounds = aset.length_fit_rounds
             resolved = await _resolve_llm_connection(session)
             if resolved is None:
                 yield _event(
@@ -717,7 +698,7 @@ class AgnoPipelineExecutor:
                 # and the visual review. The designer fixes length itself
                 # (adding grounded scenes / merging), never a mechanical rescale.
                 target_ms = max(1, target_min) * 60_000
-                for fit_round in range(1, 4):
+                for fit_round in range(1, length_fit_rounds + 1):
                     total_ms = sum(s.duration_ms for s in doc.scenes)
                     deviation = abs(total_ms - target_ms) / target_ms
                     if deviation <= _DURATION_TOLERANCE:
@@ -738,7 +719,7 @@ class AgnoPipelineExecutor:
                         PipelineEventType.LOG,
                         f"[{label}] cut is {total_ms / 1000:.0f}s vs {target_ms / 1000:.0f}s "
                         f"target ({direction.split(' — ')[0]}) — asking for a fix "
-                        f"(round {fit_round}/3)",
+                        f"(round {fit_round}/{length_fit_rounds})",
                         agent_id,
                     )
                     fit_prompt = (
@@ -774,8 +755,8 @@ class AgnoPipelineExecutor:
             if agent_id is AgentId.VERIFIER and doc is not None:
                 # Agentic verify → revise loop: the verifier grounds every claim
                 # in the paper; on failure the designer revises and the verifier
-                # re-checks, up to _MAX_VERIFY_ROUNDS rounds.
-                for round_no in range(1, _MAX_VERIFY_ROUNDS + 1):
+                # re-checks, up to the configured number of rounds.
+                for round_no in range(1, verifier_rounds + 1):
                     report: VerifierReport | None = None
                     try:
                         vres = await verifier.arun(
@@ -816,7 +797,7 @@ class AgnoPipelineExecutor:
                     if report.approved and not fails:
                         yield _event(PipelineEventType.LOG, f"[{label}] approved", agent_id)
                         break
-                    if round_no == _MAX_VERIFY_ROUNDS:
+                    if round_no == verifier_rounds:
                         yield _event(
                             PipelineEventType.LOG,
                             f"[{label}] max revision rounds reached — proceeding with "
@@ -886,7 +867,7 @@ class AgnoPipelineExecutor:
                 prev_majors: int | None = None
                 stalled = 0
                 vround = 0
-                while vround < 8:
+                while vround < visual_max_rounds:
                     vround += 1
                     scenes_payload = _dump_scenes(doc, figure_map)
                     try:
@@ -982,7 +963,7 @@ class AgnoPipelineExecutor:
                     else:
                         stalled = 0
                     prev_majors = len(majors)
-                    if stalled >= 2:
+                    if stalled >= visual_stall_rounds:
                         yield _event(
                             PipelineEventType.LOG,
                             f"[{label}] two review rounds with no progress — proceeding "
@@ -990,7 +971,7 @@ class AgnoPipelineExecutor:
                             agent_id,
                         )
                         break
-                    if vround >= 8:
+                    if vround >= visual_max_rounds:
                         yield _event(
                             PipelineEventType.LOG,
                             f"[{label}] review round cap reached — proceeding with "

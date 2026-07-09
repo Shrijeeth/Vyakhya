@@ -42,5 +42,10 @@ def build_llm_model(
         return OpenAILike(id=model_id, api_key=api_key, base_url=base_url or _GROQ_DEFAULT_BASE)
     if provider == ProviderId.OLLAMA:
         return Ollama(id=model_id, host=base_url or _OLLAMA_DEFAULT_HOST)
+    if provider == ProviderId.CUSTOM:
+        # Bring-your-own OpenAI-compatible endpoint (vLLM, LiteLLM, OpenRouter…).
+        if not base_url:
+            raise ValueError("custom LLM provider requires a base URL")
+        return OpenAILike(id=model_id, api_key=api_key or "none", base_url=base_url)
 
     raise ValueError(f"{provider.value} is not an LLM provider (cannot build an Agno model)")

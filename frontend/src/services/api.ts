@@ -7,6 +7,7 @@ import type {
   AgentId,
   AgentModelAssignment,
   AgentPrompt,
+  AgentSettings,
   ConnectionTestResult,
   EditorProject,
   PipelineEvent,
@@ -271,6 +272,17 @@ export function getRenderSettings(): Promise<RenderSettings> {
 
 export function saveRenderSettings(s: RenderSettings): Promise<RenderSettings> {
   return http<RenderSettings>("/render/settings", {
+    method: "PUT",
+    body: JSON.stringify(s),
+  });
+}
+
+export function getAgentSettings(): Promise<AgentSettings> {
+  return http<AgentSettings>("/agents/settings");
+}
+
+export function saveAgentSettings(s: AgentSettings): Promise<AgentSettings> {
+  return http<AgentSettings>("/agents/settings", {
     method: "PUT",
     body: JSON.stringify(s),
   });

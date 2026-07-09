@@ -72,3 +72,12 @@ class AgentPromptOut(CamelModel):
 
 class PromptUpdate(CamelModel):
     template: str
+
+
+class AgentSettingsIO(CamelModel):
+    """Pipeline loop knobs (Settings → Agents)."""
+
+    verifier_max_rounds: int = Field(default=3, ge=1, le=10)
+    visual_max_rounds: int = Field(default=8, ge=1, le=20)
+    visual_stall_rounds: int = Field(default=2, ge=1, le=5)
+    length_fit_rounds: int = Field(default=3, ge=0, le=5)

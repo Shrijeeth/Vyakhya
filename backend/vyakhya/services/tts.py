@@ -102,6 +102,26 @@ async def _synthesize_one(text: str, conn: ProviderConnection, api_key: str) -> 
             )
             resp.raise_for_status()
             return resp.content
+    if conn.provider == ProviderId.CUSTOM_TTS:
+        # OpenAI-compatible speech endpoint (OpenAI, LiteLLM, Kokoro-FastAPI…).
+        if not conn.base_url:
+            raise ValueError("custom TTS provider requires a base URL")
+        base = conn.base_url.rstrip("/")
+        voice = (conn.settings or {}).get("voice", "alloy")
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                f"{base}/audio/speech",
+                headers=headers,
+                json={
+                    "model": conn.model,
+                    "input": text,
+                    "voice": voice,
+                    "response_format": "mp3",
+                },
+            )
+            resp.raise_for_status()
+            return resp.content
     raise ValueError(f"TTS provider {conn.provider} not supported for synthesis")
 
 

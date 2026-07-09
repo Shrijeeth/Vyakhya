@@ -62,6 +62,8 @@ type ProviderMeta = {
   label: string;
   kind: ProviderKind;
   keyless?: boolean;
+  /** Bring-your-own endpoint: model name typed in, base URL required. */
+  custom?: boolean;
   models: string[];
 };
 
@@ -118,6 +120,15 @@ const PROVIDERS: ProviderMeta[] = [
     label: "Deepgram",
     kind: "tts",
     models: ["aura-2-thalia-en", "aura-2-helena-en", "aura-2-orion-en", "aura-asteria-en"],
+  },
+  // ── Custom (OpenAI-compatible) — model typed in, base URL required ──────
+  { id: "custom", label: "Custom (OpenAI-compatible)", kind: "llm", custom: true, models: [] },
+  {
+    id: "custom_tts",
+    label: "Custom TTS (OpenAI-compatible)",
+    kind: "tts",
+    custom: true,
+    models: [],
   },
 ];
 
@@ -210,8 +221,8 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
             value={provider}
             onValueChange={(v) => {
               setProvider(v as ProviderId);
-              const first = PROVIDERS.find((p) => p.id === v)?.models[0];
-              if (first) setModel(first);
+              const meta = PROVIDERS.find((p) => p.id === v);
+              setModel(meta?.custom ? "" : (meta?.models[0] ?? ""));
             }}
           >
             <SelectTrigger>
@@ -239,18 +250,28 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
         </div>
         <div className="space-y-1">
           <Label>{providerMeta?.kind === "tts" ? "Voice / model" : "Model"}</Label>
-          <Select value={model} onValueChange={setModel}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {providerModels.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {m}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {providerMeta?.custom ? (
+            <Input
+              placeholder={
+                providerMeta.kind === "tts" ? "e.g. kokoro / tts-1" : "e.g. llama-3.3-70b"
+              }
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+            />
+          ) : (
+            <Select value={model} onValueChange={setModel}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {providerModels.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
         {!keyless && (
           <>
@@ -265,7 +286,10 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
             </div>
             <div className="space-y-1">
               <Label>
-                Base URL <span className="text-muted-foreground">(optional)</span>
+                Base URL{" "}
+                <span className="text-muted-foreground">
+                  {providerMeta?.custom ? "(required — OpenAI-compatible)" : "(optional)"}
+                </span>
               </Label>
               <Input
                 placeholder="https://api.example.com"

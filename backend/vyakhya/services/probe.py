@@ -62,6 +62,8 @@ def _request_spec(
         return f"{base}/models", {"xi-api-key": api_key}, None
     if provider == ProviderId.DEEPGRAM:
         return f"{base}/projects", {"Authorization": f"Token {api_key}"}, None
+    if provider in (ProviderId.CUSTOM, ProviderId.CUSTOM_TTS):
+        return f"{base}/models", {"Authorization": f"Bearer {api_key}"}, None
     raise ValueError(f"no probe for provider {provider}")
 
 
@@ -76,10 +78,16 @@ async def probe_provider(
         log.info("probe provider=hyperframes builtin=ok")
         return ProbeResult(success=True, latency_ms=0, detail="Built-in engine — always available")
 
-    if provider not in KEYLESS_PROVIDERS and not api_key:
+    if provider in (ProviderId.CUSTOM, ProviderId.CUSTOM_TTS) and not base_url:
+        return ProbeResult(success=False, latency_ms=0, error="Base URL required")
+    if (
+        provider not in KEYLESS_PROVIDERS
+        and provider not in (ProviderId.CUSTOM, ProviderId.CUSTOM_TTS)
+        and not api_key
+    ):
         return ProbeResult(success=False, latency_ms=0, error="API key required")
 
-    base = (base_url or _DEFAULT_BASE[provider]).rstrip("/")
+    base = (base_url or _DEFAULT_BASE.get(provider, "")).rstrip("/")
     url, headers, params = _request_spec(provider, base, api_key)
     log.info("probe provider=%s model=%s url=%s", provider.value, model, url)
 

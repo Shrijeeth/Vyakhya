@@ -55,6 +55,31 @@ class AgentModelAssignment(Base):
     )
 
 
+class AgentSettings(Base):
+    """Single-row table: knobs for the agent pipeline's review loops."""
+
+    __tablename__ = "agent_settings"
+    __table_args__ = (
+        CheckConstraint("id", name="ck_agent_settings_singleton"),
+        CheckConstraint("verifier_max_rounds BETWEEN 1 AND 10", name="ck_verifier_rounds"),
+        CheckConstraint("visual_max_rounds BETWEEN 1 AND 20", name="ck_visual_rounds"),
+        CheckConstraint("visual_stall_rounds BETWEEN 1 AND 5", name="ck_visual_stall"),
+        CheckConstraint("length_fit_rounds BETWEEN 0 AND 5", name="ck_fit_rounds"),
+    )
+
+    id: Mapped[bool] = mapped_column(Boolean, primary_key=True, default=True)
+    # Fact verifier: verify → designer revision rounds.
+    verifier_max_rounds: Mapped[int] = mapped_column(nullable=False, default=3)
+    # Vision design review: hard cap + stop after N no-progress rounds.
+    visual_max_rounds: Mapped[int] = mapped_column(nullable=False, default=8)
+    visual_stall_rounds: Mapped[int] = mapped_column(nullable=False, default=2)
+    # Designer-stage length fitting rounds (0 disables).
+    length_fit_rounds: Mapped[int] = mapped_column(nullable=False, default=3)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
 class AgentPrompt(Base):
     __tablename__ = "agent_prompts"
 
