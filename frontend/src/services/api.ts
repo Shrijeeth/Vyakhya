@@ -220,6 +220,23 @@ export function addConnection(c: ConnectionInput): Promise<ProviderConnection> {
   });
 }
 
+export interface ConnectionUpdateInput {
+  model?: string;
+  apiKey?: string; // blank/omitted keeps the stored key
+  baseUrl?: string;
+  settings?: Record<string, unknown>;
+}
+
+export function updateConnection(
+  id: string,
+  c: ConnectionUpdateInput,
+): Promise<ProviderConnection> {
+  return http<ProviderConnection>(`/connections/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(c),
+  });
+}
+
 export function removeConnection(id: string): Promise<void> {
   return http<void>(`/connections/${id}`, { method: "DELETE" });
 }

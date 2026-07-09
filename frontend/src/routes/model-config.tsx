@@ -8,12 +8,14 @@ import {
   Info,
   KeyRound,
   Loader2,
+  Pencil,
   Plus,
   Trash2,
   XCircle,
 } from "lucide-react";
 import {
   addConnection,
+  updateConnection,
   listAssignments,
   listConnections,
   removeConnection,
@@ -377,8 +379,131 @@ function AddConnectionForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+function EditConnectionForm({
+  connection,
+  onDone,
+}: {
+  connection: ProviderConnection;
+  onDone: () => void;
+}) {
+  const meta = PROVIDERS.find((p) => p.id === connection.provider);
+  const [model, setModel] = useState(connection.model);
+  const [apiKey, setApiKey] = useState("");
+  const [baseUrl, setBaseUrl] = useState(connection.baseUrl ?? "");
+  const [foldSystem, setFoldSystem] = useState(Boolean(connection.settings?.foldSystemPrompt));
+  const [toolPrefix, setToolPrefix] = useState(String(connection.settings?.toolNamePrefix ?? ""));
+  const qc = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: () =>
+      updateConnection(connection.id, {
+        model,
+        apiKey: apiKey || undefined,
+        baseUrl,
+        settings: meta?.custom
+          ? {
+              ...connection.settings,
+              foldSystemPrompt: foldSystem,
+              toolNamePrefix: toolPrefix.trim(),
+            }
+          : connection.settings,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["connections"] });
+      toast.success("Connection updated");
+      onDone();
+    },
+  });
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="mb-3 text-sm font-semibold">
+        Edit connection · <span className="capitalize">{connection.provider}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label>{meta?.kind === "tts" ? "Voice / model" : "Model"}</Label>
+          {meta?.custom || !meta?.models.length ? (
+            <Input value={model} onChange={(e) => setModel(e.target.value)} />
+          ) : (
+            <Select value={model} onValueChange={setModel}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[...new Set([connection.model, ...meta.models])].map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+        <div className="space-y-1">
+          <Label>
+            API key <span className="text-muted-foreground">(blank keeps current)</span>
+          </Label>
+          <Input
+            type="password"
+            placeholder={connection.apiKeyMasked}
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+          />
+        </div>
+        <div className="col-span-2 space-y-1">
+          <Label>
+            Base URL{" "}
+            <span className="text-muted-foreground">
+              {meta?.custom ? "(required — OpenAI-compatible)" : "(optional)"}
+            </span>
+          </Label>
+          <Input
+            placeholder="https://api.example.com"
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+          />
+        </div>
+        {meta?.custom && (
+          <>
+            <div className="col-span-2 flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2.5">
+              <div>
+                <Label className="text-sm">Fold system prompt</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Merge system instructions into the first user message — enable if the endpoint
+                  ignores system messages.
+                </p>
+              </div>
+              <Switch checked={foldSystem} onCheckedChange={setFoldSystem} />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>
+                Tool name prefix <span className="text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                placeholder="Stripped from tool-call names the endpoint rewrites"
+                value={toolPrefix}
+                onChange={(e) => setToolPrefix(e.target.value)}
+              />
+            </div>
+          </>
+        )}
+      </div>
+      <div className="mt-4 flex justify-end gap-2">
+        <Button variant="ghost" onClick={onDone}>
+          Cancel
+        </Button>
+        <Button onClick={() => mutation.mutate()} disabled={mutation.isPending || !model.trim()}>
+          {mutation.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+          Save changes
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function ModelConfigPage() {
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<ProviderConnection | null>(null);
   const qc = useQueryClient();
   const { data: connections = [] } = useQuery({
     queryKey: ["connections"],
@@ -446,6 +571,16 @@ function ModelConfigPage() {
         </div>
       )}
 
+      {editing && (
+        <div className="mb-6">
+          <EditConnectionForm
+            key={editing.id}
+            connection={editing}
+            onDone={() => setEditing(null)}
+          />
+        </div>
+      )}
+
       <div className="rounded-lg border border-border bg-card">
         <div className="border-b border-border px-4 py-3 text-sm font-semibold">
           Provider connections
@@ -487,6 +622,14 @@ function ModelConfigPage() {
                       ) : (
                         "Test"
                       )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setEditing(c)}
+                      aria-label="Edit"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                       variant="ghost"

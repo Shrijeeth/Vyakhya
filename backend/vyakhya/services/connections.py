@@ -9,7 +9,12 @@ from vyakhya.core.logging import get_logger
 from vyakhya.core.security import mask_secret
 from vyakhya.db.models.config import AgentModelAssignment, AgentSettings, ProviderConnection
 from vyakhya.enums import AgentRole, ConnectionStatus, provider_kind
-from vyakhya.schemas.config import AgentSettingsIO, ConnectionCreate, ConnectionTest
+from vyakhya.schemas.config import (
+    AgentSettingsIO,
+    ConnectionCreate,
+    ConnectionTest,
+    ConnectionUpdate,
+)
 from vyakhya.services.crypto import get_encryptor
 from vyakhya.services.probe import ProbeResult, probe_provider
 from vyakhya.utils import new_id, utcnow
@@ -53,6 +58,33 @@ async def create_connection(session: AsyncSession, payload: ConnectionCreate) ->
         conn.kind.value,
         conn.model,
         enc is None,
+    )
+    return conn
+
+
+async def update_connection(
+    session: AsyncSession, connection_id: str, payload: ConnectionUpdate
+) -> ProviderConnection | None:
+    """Edit a saved connection (model / key / base URL / settings). Provider
+    and kind are immutable; a blank api_key keeps the stored one."""
+    conn = await session.get(ProviderConnection, connection_id)
+    if conn is None:
+        return None
+    if payload.model is not None and payload.model.strip():
+        conn.model = payload.model.strip()
+    if payload.base_url is not None:
+        conn.base_url = payload.base_url.strip() or None
+    if payload.settings is not None:
+        conn.settings = payload.settings
+    api_key = (payload.api_key or "").strip()
+    if api_key:
+        encryptor = await get_encryptor(session)
+        conn.api_key_enc = encryptor.encrypt(api_key)
+        conn.api_key_masked = mask_secret(api_key)
+    conn.status = ConnectionStatus.UNKNOWN  # re-test after edits
+    await session.flush()
+    log.info(
+        "connection updated id=%s provider=%s model=%s", conn.id, conn.provider.value, conn.model
     )
     return conn
 
@@ -149,6 +181,7 @@ async def save_agent_settings(session: AsyncSession, payload: AgentSettingsIO) -
 __all__ = [
     "list_connections",
     "create_connection",
+    "update_connection",
     "remove_connection",
     "probe_draft",
     "test_connection",

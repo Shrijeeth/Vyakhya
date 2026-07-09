@@ -74,6 +74,16 @@ class PromptUpdate(CamelModel):
     template: str
 
 
+class ConnectionUpdate(CamelModel):
+    """Partial update for a saved connection. ``api_key`` empty/None keeps the
+    stored key; provider/kind are immutable."""
+
+    model: str | None = None
+    api_key: str | None = None
+    base_url: str | None = None
+    settings: dict | None = None
+
+
 class AgentSettingsIO(CamelModel):
     """Pipeline loop knobs (Settings → Agents)."""
 

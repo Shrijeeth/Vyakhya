@@ -13,6 +13,7 @@ from vyakhya.schemas.config import (
     ConnectionCreate,
     ConnectionTest,
     ConnectionTestResult,
+    ConnectionUpdate,
     ProviderConnectionOut,
 )
 from vyakhya.services import connections as svc
@@ -40,6 +41,16 @@ async def create_connection(
     payload: ConnectionCreate, session: SessionDep
 ) -> ProviderConnectionOut:
     conn = await svc.create_connection(session, payload)
+    return ProviderConnectionOut.model_validate(conn)
+
+
+@router.put("/connections/{connection_id}", response_model=ProviderConnectionOut)
+async def update_connection(
+    connection_id: str, payload: ConnectionUpdate, session: SessionDep
+) -> ProviderConnectionOut:
+    conn = await svc.update_connection(session, connection_id, payload)
+    if conn is None:
+        raise HTTPException(status_code=404, detail="Connection not found")
     return ProviderConnectionOut.model_validate(conn)
 
 
