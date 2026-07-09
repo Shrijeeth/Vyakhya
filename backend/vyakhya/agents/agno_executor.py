@@ -710,13 +710,30 @@ class AgnoPipelineExecutor:
 
         async def _design(prompt: str) -> GenDocument | None:
             """One designer call, timed; _coerce_document still guards the
-            output (fence-stripping, truncation salvage, per-scene recovery)."""
+            output (fence-stripping, truncation salvage, per-scene recovery).
+            A provider failure (Agno swallows it into an errored run with no
+            content) is raised so callers report the REAL cause instead of
+            'no parseable scenes'."""
             import time as _time
 
             t0 = _time.monotonic()
             res = await designer.arun(input=prompt, stream=False)
             log.info("designer call took %.1fs", _time.monotonic() - t0)
-            return _coerce_document(res.content if res else None)
+            content = res.content if res else None
+            if content is None:
+                status = getattr(res, "status", None)
+                status = str(getattr(status, "value", status) or "").lower()
+                if res is None or status == "error":
+                    raise RuntimeError(
+                        "model call failed"
+                        + (
+                            f": {getattr(res, 'error', None)}"
+                            if getattr(res, "error", None)
+                            else ""
+                        )
+                        + " (see worker logs)"
+                    )
+            return _coerce_document(content)
 
         verifier = Agent(
             name="Verifier",
@@ -891,6 +908,7 @@ class AgnoPipelineExecutor:
                     # a shortfall the length fit / re-plan below repairs.
                     doc = GenDocument(scenes=[])
                     n_batches = (len(plan.beats) + _SCENE_BATCH - 1) // _SCENE_BATCH
+                    dead_batches = 0
                     for start in range(0, len(plan.beats), _SCENE_BATCH):
                         chunk = plan.beats[start : start + _SCENE_BATCH]
                         batch_no = start // _SCENE_BATCH + 1
@@ -925,10 +943,12 @@ class AgnoPipelineExecutor:
                             f"Document text:\n{paper_text}"
                         )
                         batch: GenDocument | None = None
+                        batch_err = ""
                         for attempt in range(2):
                             try:
                                 batch = await _design(bprompt)
                             except Exception as exc:  # noqa: BLE001 - retry once
+                                batch_err = str(exc)
                                 log.warning(
                                     "designer batch %d attempt %d failed: %s",
                                     batch_no,
@@ -939,6 +959,7 @@ class AgnoPipelineExecutor:
                             if batch is not None and batch.scenes:
                                 break
                         if batch is not None and batch.scenes:
+                            dead_batches = 0
                             for sc in batch.scenes:
                                 sc.index = None  # appended, never patched
                             doc.scenes.extend(batch.scenes)
@@ -949,12 +970,25 @@ class AgnoPipelineExecutor:
                                 agent_id,
                             )
                         else:
+                            last_error = batch_err or "model returned no parseable scenes"
+                            dead_batches += 1
                             yield _event(
                                 PipelineEventType.LOG,
                                 f"[{label}] batch {batch_no}/{n_batches} produced no "
-                                f"valid scenes — continuing",
+                                f"valid scenes ({last_error}) — continuing",
                                 agent_id,
                             )
+                            if dead_batches >= 2:
+                                # Two batches (four calls) in a row failed — the
+                                # provider is down, not unlucky. Stop burning
+                                # calls; whatever is designed so far proceeds.
+                                yield _event(
+                                    PipelineEventType.LOG,
+                                    f"[{label}] two consecutive batches failed — "
+                                    f"stopping batch generation ({last_error})",
+                                    agent_id,
+                                )
+                                break
                     if not doc.scenes:
                         doc = None
                 else:
