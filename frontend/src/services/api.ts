@@ -133,12 +133,9 @@ export function deleteProject(id: string): Promise<void> {
 // ---------------- Pipeline ----------------
 const AGENT_SEQUENCE: { id: AgentId; label: string }[] = [
   { id: "ingestor", label: "Ingestor" },
-  { id: "comprehension", label: "Comprehension" },
-  { id: "planner", label: "Planner" },
-  { id: "scriptwriter", label: "Scriptwriter" },
   { id: "visual_designer", label: "Visual Designer" },
   { id: "narrator", label: "Narrator" },
-  { id: "verifier", label: "Verifier" },
+  { id: "verifier", label: "Reviewer" },
   { id: "assembler", label: "Assembler" },
 ];
 

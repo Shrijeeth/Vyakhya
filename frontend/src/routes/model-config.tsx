@@ -154,15 +154,16 @@ const ROLES: {
   hint: string;
 }[] = [
   {
-    id: "comprehension",
-    label: "Comprehension",
-    hint: "Reads the document and structures its argument",
+    id: "visual_designer",
+    label: "Visual Designer",
+    hint: "Writes the story and designs every frame — assign your strongest model",
   },
-  { id: "planner", label: "Planner", hint: "Turns comprehension into scene beats" },
-  { id: "scriptwriter", label: "Scriptwriter", hint: "Writes narration for each scene" },
-  { id: "visual_designer", label: "Visual Designer", hint: "Picks visual types and parameters" },
+  {
+    id: "verifier",
+    label: "Reviewer",
+    hint: "Judges motion, visuals, and facts from rendered screenshots — needs a vision model",
+  },
   { id: "narrator", label: "Narrator (TTS)", hint: "Speaks the narration" },
-  { id: "verifier", label: "Verifier", hint: "Checks every claim against the document" },
   {
     id: "parser",
     label: "Parser (structured output)",

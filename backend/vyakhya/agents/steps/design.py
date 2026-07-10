@@ -174,24 +174,13 @@ async def _fit_length(ctx: PipelineContext) -> None:
 
 
 async def run(ctx: PipelineContext) -> None:
-    # Pass-through stages the UI sequence expects; their work now lives in
-    # the designer itself.
-    async with ctx.stage(AgentId.COMPREHENSION, "Comprehension"):
-        ctx.log(AgentId.COMPREHENSION, "[Comprehension] document text loaded for the designer")
-    async with ctx.stage(AgentId.PLANNER, "Planner"):
+    async with ctx.stage(AgentId.VISUAL_DESIGNER, "Visual Designer"):
         n = scene_budget(ctx.target_ms)
         ctx.log(
-            AgentId.PLANNER,
-            f"[Planner] scene budget: {n} scenes for the {ctx.target_min} min target",
+            AgentId.VISUAL_DESIGNER,
+            f"[Visual Designer] scene budget: {n} scenes for the {ctx.target_min} min target",
         )
-    async with ctx.stage(AgentId.SCRIPTWRITER, "Scriptwriter"):
-        ctx.log(
-            AgentId.SCRIPTWRITER,
-            "[Scriptwriter] narration is written per scene by the designer",
-        )
-
-    async with ctx.stage(AgentId.VISUAL_DESIGNER, "Visual Designer"):
-        ctx.doc = await _design_batches(ctx, scene_budget(ctx.target_ms))
+        ctx.doc = await _design_batches(ctx, n)
         if not ctx.doc.scenes:
             ctx.log(AgentId.VISUAL_DESIGNER, "[Visual Designer] produced no valid scenes")
             raise RuntimeError("visual designer produced no scenes")
