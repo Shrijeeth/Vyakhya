@@ -16,7 +16,9 @@ export interface SceneShot {
   png: string;
 }
 
-const MAX_SHOTS = 32;
+// Must cover the largest cut the pipeline produces (scene budget caps at 60);
+// a silently truncated set means the reviewer never sees the tail scenes.
+const MAX_SHOTS = 64;
 
 function viewport(aspect: string): { width: number; height: number } {
   if (aspect === "9:16") return { width: 540, height: 960 };
