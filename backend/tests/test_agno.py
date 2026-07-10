@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from vyakhya.agents.agno_executor import GenCitation, GenDocument, GenScene
+from vyakhya.agents.schemas import GenCitation, GenDocument, GenScene
 from vyakhya.enums import CaptionStyle, ProviderId, SceneTransition, VisualType
 from vyakhya.services.pipeline import _select_executor
 
@@ -24,7 +24,7 @@ def test_select_executor_defaults_to_simulated(monkeypatch):
 
 
 def test_select_executor_uses_agno_when_enabled(monkeypatch):
-    from vyakhya.agents.agno_executor import AgnoPipelineExecutor
+    from vyakhya.agents.executor import AgnoPipelineExecutor
     from vyakhya.core.config import get_settings
 
     get_settings.cache_clear()
@@ -91,7 +91,7 @@ def test_skills_load():
 
 
 def test_coerce_plan_from_json_and_bare_list():
-    from vyakhya.agents.agno_executor import _coerce_plan
+    from vyakhya.agents.schemas import coerce_plan as _coerce_plan
 
     plan = _coerce_plan('{"beats": [{"headline": "Hook", "durationMs": 8000}]}')
     assert plan is not None and plan.beats[0].headline == "Hook"
@@ -105,7 +105,8 @@ def test_coerce_plan_from_json_and_bare_list():
 
 
 def test_plan_block_renders_beats():
-    from vyakhya.agents.agno_executor import StoryPlan, _plan_block
+    from vyakhya.agents.schemas import StoryPlan
+    from vyakhya.agents.steps.plan import plan_block as _plan_block
 
     assert _plan_block(None) == ""
     plan = StoryPlan.model_validate(
@@ -135,3 +136,34 @@ def test_designer_skill_text_inlined():
     assert "Skill: hyperframes-core" in text
     assert "Skill: faceless-explainer" in text
     assert len(text) > 10_000
+
+
+def test_pipeline_workflow_builds():
+    from vyakhya.agents.context import PipelineContext, Tunables
+    from vyakhya.agents.workflow import build_pipeline_workflow
+
+    ctx = PipelineContext(
+        project_id="p1",
+        title="t",
+        audience="layperson",
+        language="en",
+        target_min=3,
+        tts_enabled=False,
+        aspect="16:9",
+        user_prompt="",
+        paper_text="text",
+        figures=[],
+        paper_file_url=None,
+        tunables=Tunables(),
+        agents=None,
+        emit=lambda e: None,
+    )
+    wf = build_pipeline_workflow(ctx)
+    assert [s.name for s in wf.steps] == [
+        "ingest",
+        "research",
+        "plan",
+        "design",
+        "review",
+        "assemble",
+    ]

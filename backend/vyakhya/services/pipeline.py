@@ -173,7 +173,7 @@ def _select_executor():  # noqa: ANN202 - PipelineExecutor (Agno or simulated)
         try:
             import agno  # noqa: F401 - probe the optional extra is installed
 
-            from vyakhya.agents.agno_executor import AgnoPipelineExecutor
+            from vyakhya.agents.executor import AgnoPipelineExecutor
 
             log.info("pipeline using Agno executor")
             return AgnoPipelineExecutor()
