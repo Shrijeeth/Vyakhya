@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
-from vyakhya.agents.pipeline import AGENT_SEQUENCE, _event
+from vyakhya.agents.events import AGENT_SEQUENCE, pipeline_event
 from vyakhya.agents.schemas import GenDocument
 from vyakhya.core.logging import get_logger
 from vyakhya.enums import AgentId, AgentStatus, PipelineEventType
@@ -63,16 +63,16 @@ class PipelineContext:
 
     # ── Event helpers ──────────────────────────────────────────────────────────
     def log(self, agent_id: AgentId, message: str) -> None:
-        self.emit(_event(PipelineEventType.LOG, message, agent_id))
+        self.emit(pipeline_event(PipelineEventType.LOG, message, agent_id))
 
     def flag(self, agent_id: AgentId, payload: dict) -> None:
-        self.emit(_event(PipelineEventType.FLAG, payload, agent_id))
+        self.emit(pipeline_event(PipelineEventType.FLAG, payload, agent_id))
 
     def scenes(self, agent_id: AgentId) -> None:
-        self.emit(_event(PipelineEventType.SCENES, self.scenes_payload, agent_id))
+        self.emit(pipeline_event(PipelineEventType.SCENES, self.scenes_payload, agent_id))
 
     def status(self, agent_id: AgentId, value: AgentStatus) -> None:
-        self.emit(_event(PipelineEventType.STATUS, value.value, agent_id))
+        self.emit(pipeline_event(PipelineEventType.STATUS, value.value, agent_id))
 
     @property
     def target_ms(self) -> int:
@@ -105,7 +105,9 @@ class PipelineContext:
         self.status(agent_id, AgentStatus.DONE)
         self._stages_done += 1
         self.emit(
-            _event(PipelineEventType.PROGRESS, round(self._stages_done / len(AGENT_SEQUENCE), 3))
+            pipeline_event(
+                PipelineEventType.PROGRESS, round(self._stages_done / len(AGENT_SEQUENCE), 3)
+            )
         )
 
     # ── Model-call helper ──────────────────────────────────────────────────────

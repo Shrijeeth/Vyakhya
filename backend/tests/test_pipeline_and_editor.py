@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from vyakhya.agents.pipeline import AGENT_SEQUENCE, SimulatedPipelineExecutor
+from vyakhya.agents.events import AGENT_SEQUENCE
+from vyakhya.agents.simulated import SimulatedPipelineExecutor
 from vyakhya.enums import AgentId, PipelineEventType, VisualType
 from vyakhya.schemas.project import SceneIn
 from vyakhya.services.editor import compile_scene_preview

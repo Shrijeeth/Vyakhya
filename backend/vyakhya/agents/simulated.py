@@ -1,38 +1,21 @@
-"""The agent-crew pipeline seam.
+"""No-LLM demo executor.
 
-`AGENT_SEQUENCE` is the fixed order the UI renders. `PipelineExecutor` is the
-interface the service layer drives; `SimulatedPipelineExecutor` mirrors the
-frontend mock (status → logs → done, with verifier flags) so the whole app runs
-end-to-end today. The real Agno implementation (`AgnoPipelineExecutor`) drops in
-behind the same async-iterator contract — no route/service changes.
+Used only when ``USE_AGNO`` is off, the ``agents`` extra is missing, or no
+LLM connection exists: fakes stage progress and emits canned scenes/flags so
+the whole app is demoable without any API keys. The real pipeline
+(``AgnoPipelineExecutor``) never touches any of this.
 """
 
 from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from typing import Any, Protocol
+from typing import Any
 
+from vyakhya.agents.events import AGENT_SEQUENCE, pipeline_event
 from vyakhya.enums import AgentId, AgentStatus, PipelineEventType
 from vyakhya.utils import new_id
 
-AGENT_SEQUENCE: list[tuple[AgentId, str]] = [
-    (AgentId.INGESTOR, "Ingestor"),
-    (AgentId.COMPREHENSION, "Comprehension"),
-    (AgentId.PLANNER, "Planner"),
-    (AgentId.SCRIPTWRITER, "Scriptwriter"),
-    (AgentId.VISUAL_DESIGNER, "Visual Designer"),
-    (AgentId.NARRATOR, "Narrator"),
-    (AgentId.VERIFIER, "Verifier"),
-    (AgentId.ASSEMBLER, "Assembler"),
-]
-
-
-def _event(type_: PipelineEventType, payload: Any = None, agent: AgentId | None = None) -> dict:
-    return {"type": type_.value, "agentId": agent.value if agent else None, "payload": payload}
-
-
-# Sample verifier output for the simulated run (mirrors the frontend mock).
 _SAMPLE_FLAGS = [
     {
         "id": "vf1",
@@ -56,11 +39,8 @@ _SAMPLE_FLAGS = [
     },
 ]
 
-
-# Sample scenes the assembler "produces" for the simulated run — a short
-# Transformer-paper explainer that exercises several visual types so the editor
-# and preview have real content end-to-end. Params match the @vyakhya/compiler
-# renderer shapes. The real Agno crew replaces this with Scene-JSON output.
+# Canned scenes exercising several built-in visual types so the editor and
+# preview have real content end-to-end without a model.
 _SAMPLE_SCENES: list[dict[str, Any]] = [
     {
         "visualType": "title.card",
@@ -117,13 +97,8 @@ _SAMPLE_SCENES: list[dict[str, Any]] = [
 ]
 
 
-class PipelineExecutor(Protocol):
-    def run(self, project_id: str) -> AsyncIterator[dict]:  # pragma: no cover - interface
-        ...
-
-
 class SimulatedPipelineExecutor:
-    """Deterministic, fast simulation of the agent crew for dev + preview."""
+    """Deterministic, fast simulation of the pipeline for dev + preview."""
 
     def __init__(self, step_seconds: float = 0.4, log_seconds: float = 0.12) -> None:
         self.step_seconds = step_seconds
@@ -132,17 +107,17 @@ class SimulatedPipelineExecutor:
     async def run(self, project_id: str) -> AsyncIterator[dict]:
         total = len(AGENT_SEQUENCE)
         for idx, (agent, label) in enumerate(AGENT_SEQUENCE):
-            yield _event(PipelineEventType.STATUS, AgentStatus.RUNNING.value, agent)
+            yield pipeline_event(PipelineEventType.STATUS, AgentStatus.RUNNING.value, agent)
             for step in range(1, 4):
                 await asyncio.sleep(self.log_seconds)
-                yield _event(PipelineEventType.LOG, f"[{label}] step {step}/3 …", agent)
+                yield pipeline_event(PipelineEventType.LOG, f"[{label}] step {step}/3 …", agent)
             await asyncio.sleep(self.step_seconds)
-            yield _event(PipelineEventType.STATUS, AgentStatus.DONE.value, agent)
-            yield _event(PipelineEventType.PROGRESS, round((idx + 1) / total, 3))
+            yield pipeline_event(PipelineEventType.STATUS, AgentStatus.DONE.value, agent)
+            yield pipeline_event(PipelineEventType.PROGRESS, round((idx + 1) / total, 3))
             if agent is AgentId.VERIFIER:
                 for flag in _SAMPLE_FLAGS:
-                    yield _event(PipelineEventType.FLAG, {**flag, "id": new_id("vf")})
+                    yield pipeline_event(PipelineEventType.FLAG, {**flag, "id": new_id("vf")})
             if agent is AgentId.ASSEMBLER:
                 # The assembler emits the final Scene-JSON; the service persists it.
-                yield _event(PipelineEventType.SCENES, _SAMPLE_SCENES, agent)
-        yield _event(PipelineEventType.DONE, None)
+                yield pipeline_event(PipelineEventType.SCENES, _SAMPLE_SCENES, agent)
+        yield pipeline_event(PipelineEventType.DONE, None)

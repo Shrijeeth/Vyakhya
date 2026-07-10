@@ -12,7 +12,7 @@ from collections.abc import AsyncIterator
 
 from vyakhya.agents.context import PipelineContext, Tunables
 from vyakhya.agents.crew import build_agents
-from vyakhya.agents.pipeline import _event
+from vyakhya.agents.events import pipeline_event
 from vyakhya.core.database import get_sessionmaker
 from vyakhya.core.logging import get_logger
 from vyakhya.db.models.project import Project
@@ -74,7 +74,7 @@ class AgnoPipelineExecutor:
         queue: asyncio.Queue[dict] = asyncio.Queue()
         ctx = await self._build_context(project_id, queue.put_nowait)
         if ctx is None:
-            yield _event(
+            yield pipeline_event(
                 PipelineEventType.LOG,
                 "No LLM connection configured — add one in Model Config.",
                 AgentId.INGESTOR,
@@ -97,7 +97,7 @@ class AgnoPipelineExecutor:
         status = str(getattr(getattr(result, "status", None), "value", "") or "").lower()
         if status == "error":
             raise RuntimeError(str(getattr(result, "content", None) or "pipeline step failed"))
-        yield _event(PipelineEventType.DONE, None)
+        yield pipeline_event(PipelineEventType.DONE, None)
 
     async def _build_context(self, project_id: str, emit) -> PipelineContext | None:  # noqa: ANN001
         sm = get_sessionmaker()

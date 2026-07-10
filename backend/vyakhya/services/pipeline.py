@@ -10,7 +10,8 @@ from collections.abc import AsyncIterator
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from vyakhya.agents.pipeline import AGENT_SEQUENCE, SimulatedPipelineExecutor
+from vyakhya.agents.events import AGENT_SEQUENCE
+from vyakhya.agents.simulated import SimulatedPipelineExecutor
 from vyakhya.core.config import get_settings
 from vyakhya.core.database import get_sessionmaker
 from vyakhya.core.events import broker

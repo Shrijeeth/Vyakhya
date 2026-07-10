@@ -16,7 +16,7 @@ pytest.importorskip("agno", reason="agents extra not installed")
 
 
 def test_select_executor_defaults_to_simulated(monkeypatch):
-    from vyakhya.agents.pipeline import SimulatedPipelineExecutor
+    from vyakhya.agents.simulated import SimulatedPipelineExecutor
 
     # use_agno defaults False → simulated.
     ex = _select_executor()
