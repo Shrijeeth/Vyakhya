@@ -1,4 +1,4 @@
-"""The pipeline as an Agno Workflow: six named steps over one shared context.
+"""The pipeline as an Agno Workflow: four named steps over one shared context.
 
 Steps communicate through ``PipelineContext`` (not step outputs) and stream
 progress to the UI via ``ctx.emit``; the workflow provides ordering and
@@ -10,7 +10,7 @@ from collections.abc import Callable
 from typing import Any
 
 from vyakhya.agents.context import PipelineContext
-from vyakhya.agents.steps import assemble, design, ingest, plan, research, review
+from vyakhya.agents.steps import assemble, design, ingest, review
 
 
 def build_pipeline_workflow(ctx: PipelineContext) -> Any:
@@ -30,8 +30,6 @@ def build_pipeline_workflow(ctx: PipelineContext) -> Any:
         name="vyakhya-pipeline",
         steps=[
             as_step("ingest", ingest.run),
-            as_step("research", research.run),
-            as_step("plan", plan.run),
             as_step("design", design.run),
             as_step("review", review.run),
             as_step("assemble", assemble.run),

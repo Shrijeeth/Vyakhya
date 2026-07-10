@@ -1,73 +1,76 @@
-"""Visual designer step: scenes in beat-sized batches, then length fit.
+"""Design step: the designer writes the whole video, a batch of scenes per
+call (the full cut's JSON cannot fit one completion), then tops up length.
 
-Batching exists because the full cut's JSON cannot fit one completion —
-a 36-beat video is ~50k output tokens and WILL truncate. A cut still far
-short after the fit rounds means the PLAN was too thin, so the planner
-writes extra beats and the designer renders only those (one pass)."""
+No separate planner — the scene budget is computed from the target length
+and the designer carries the story across batches via the running tail of
+scenes it already wrote."""
 
 from __future__ import annotations
 
 from vyakhya.agents.context import DURATION_TOLERANCE, SCENE_BATCH, PipelineContext
-from vyakhya.agents.schemas import GenDocument, coerce_document, coerce_plan, dump_scenes
-from vyakhya.agents.steps.plan import plan_block
+from vyakhya.agents.schemas import GenDocument, coerce_document, dump_scenes
 from vyakhya.core.logging import get_logger
 from vyakhya.enums import AgentId, AudienceLevel
 
 log = get_logger(__name__)
 
 _HB = (AgentId.VISUAL_DESIGNER, "Visual Designer")
+_AVG_SCENE_MS = 6000
 
 
-def _context_blocks(ctx: PipelineContext) -> str:
-    figures = ""
-    if ctx.figures:
-        lines = "\n".join(
-            f"- {f['id']}: page {f['page']}, {f['width']}x{f['height']}px" for f in ctx.figures
-        )
-        figures = f"\n\nFigures cropped from the document (embed via figureId):\n{lines}"
-    research = ""
-    if ctx.research is not None and (ctx.research.summary or ctx.research.key_points):
-        notes = "\n".join(f"- {p}" for p in ctx.research.key_points)
-        research = f"\n\nWeb research context:\n{ctx.research.summary}\n{notes}"
-    return figures + research
+def scene_budget(target_ms: int) -> int:
+    return max(3, min(60, round(target_ms / _AVG_SCENE_MS)))
+
+
+def _figures_block(ctx: PipelineContext) -> str:
+    if not ctx.figures:
+        return ""
+    lines = "\n".join(
+        f"- {f['id']}: page {f['page']}, {f['width']}x{f['height']}px" for f in ctx.figures
+    )
+    return f"\n\nFigures cropped from the document (embed via figureId):\n{lines}"
 
 
 async def _design(ctx: PipelineContext, prompt: str) -> GenDocument | None:
     return coerce_document(await ctx.call(ctx.agents.designer, prompt, heartbeat=_HB))
 
 
-async def _design_batched(ctx: PipelineContext) -> GenDocument | None:
-    """One designer call per SCENE_BATCH beats; two consecutive dead batches
-    stop generation (the provider is down, not unlucky)."""
-    beats = ctx.plan.beats  # type: ignore[union-attr]
+async def _design_batches(ctx: PipelineContext, total: int) -> GenDocument:
+    """Write scenes 1..total in SCENE_BATCH chunks, carrying the story tail
+    between calls; two consecutive dead batches stop generation."""
     doc = GenDocument(scenes=[])
-    n_batches = (len(beats) + SCENE_BATCH - 1) // SCENE_BATCH
+    n_batches = (total + SCENE_BATCH - 1) // SCENE_BATCH
     dead = 0
-    for start in range(0, len(beats), SCENE_BATCH):
-        chunk = beats[start : start + SCENE_BATCH]
+    for start in range(0, total, SCENE_BATCH):
+        count = min(SCENE_BATCH, total - start)
         batch_no = start // SCENE_BATCH + 1
         ctx.log(
             AgentId.VISUAL_DESIGNER,
-            f"[Visual Designer] designing beats {start}–{start + len(chunk) - 1} "
+            f"[Visual Designer] writing scenes {start + 1}–{start + count} of {total} "
             f"(batch {batch_no}/{n_batches})…",
         )
-        beat_lines = "\n".join(f"- {b.headline} — {b.summary} (~{b.duration_ms} ms)" for b in chunk)
+        position = (
+            "This is the OPENING of the video — start with a hook."
+            if start == 0
+            else "This is the ENDING of the video — land the payoff and close."
+            if start + count >= total
+            else "This is the middle of the video — keep the story building."
+        )
         continuity = ""
         if doc.scenes:
-            tail = "\n".join(f"- {(s.narration or '')[:60]}" for s in doc.scenes[-3:])
+            tail = "\n".join(f"- {(s.narration or '')[:70]}" for s in doc.scenes[-3:])
             continuity = (
-                f"\n\nScenes designed so far end with:\n{tail}\nKeep the SAME visual "
-                "theme (background, palette, typography) so the video feels continuous."
+                f"\nThe story so far ends with:\n{tail}\nContinue it seamlessly and "
+                "keep the SAME visual theme (background, palette, typography)."
             )
         prompt = (
             f"{ctx.brief}"
-            f"Design scenes for ONLY these {len(chunk)} beats of the story plan "
-            f"(other beats are designed separately). EXACTLY ONE scene per beat, "
-            f'in beat order: return {len(chunk)} scenes as {{"scenes": [...]}} — '
-            f"never merge or summarize beats.\n"
+            f"Write scenes {start + 1}–{start + count} of a {total}-scene explainer "
+            f"video about this document. {position}{continuity}\n"
+            f'Return EXACTLY {count} scenes as {{"scenes": [...]}}.\n'
             f"Title: {ctx.title}\nAudience: {AudienceLevel(ctx.audience).value}\n"
-            f"Language: {ctx.language}{_context_blocks(ctx)}\n\n"
-            f"Beats:\n{beat_lines}{continuity}\n\nDocument text:\n{ctx.paper_text}"
+            f"Language: {ctx.language}{_figures_block(ctx)}\n\n"
+            f"Document text:\n{ctx.paper_text}"
         )
         try:
             batch = await _design(ctx, prompt)
@@ -94,31 +97,14 @@ async def _design_batched(ctx: PipelineContext) -> GenDocument | None:
             if dead >= 2:
                 ctx.log(
                     AgentId.VISUAL_DESIGNER,
-                    "[Visual Designer] two consecutive batches failed — stopping batch generation",
+                    "[Visual Designer] two consecutive batches failed — stopping",
                 )
                 break
-    return doc if doc.scenes else None
-
-
-async def _design_single_shot(ctx: PipelineContext) -> GenDocument | None:
-    """Whole cut in one call — only for short videos / planless runs."""
-    prompt = (
-        f"{ctx.brief}"
-        f"Design the explainer scenes for this document.\n"
-        f"Title: {ctx.title}\nAudience: {AudienceLevel(ctx.audience).value}\n"
-        f"Language: {ctx.language}{_context_blocks(ctx)}{plan_block(ctx.plan)}\n\n"
-        f"Document text:\n{ctx.paper_text}"
-    )
-    try:
-        return await _design(ctx, prompt)
-    except Exception as exc:  # noqa: BLE001
-        log.warning("single-shot design failed: %s", exc)
-        return None
+    return doc
 
 
 async def _fit_length(ctx: PipelineContext) -> None:
-    """Designer-driven length fit: too short → ONLY new scenes spliced before
-    the closer; too long → full revised list."""
+    """Simple top-up/trim loop until the cut is within tolerance."""
     doc = ctx.doc
     assert doc is not None
     for fit_round in range(1, ctx.tunables.length_fit_rounds + 1):
@@ -134,8 +120,8 @@ async def _fit_length(ctx: PipelineContext) -> None:
         ctx.log(
             AgentId.VISUAL_DESIGNER,
             f"[Visual Designer] cut is {total_ms / 1000:.0f}s vs "
-            f"{ctx.target_ms / 1000:.0f}s target ({'too SHORT' if too_short else 'too LONG'}) "
-            f"— asking for a fix (round {fit_round}/{ctx.tunables.length_fit_rounds})",
+            f"{ctx.target_ms / 1000:.0f}s ({'too SHORT' if too_short else 'too LONG'}) "
+            f"— fixing (round {fit_round}/{ctx.tunables.length_fit_rounds})",
         )
         if too_short:
             summary = "\n".join(
@@ -143,11 +129,10 @@ async def _fit_length(ctx: PipelineContext) -> None:
             )
             prompt = (
                 f"{ctx.brief}"
-                f"Your cut totals {total_ms} ms but the video must total about "
-                f"{ctx.target_ms} ms. Design NEW scenes (~{ctx.target_ms - total_ms} ms "
-                f"more, grounded with citations) to slot between the existing scenes "
-                f'and the closer. Return ONLY the new scenes as {{"scenes": [...]}} — '
-                f"do NOT repeat existing scenes.\n\n"
+                f"Your cut totals {total_ms} ms; the video must total about "
+                f"{ctx.target_ms} ms. Write NEW scenes (~{ctx.target_ms - total_ms} ms "
+                f"more, grounded in the document) that deepen the story before its "
+                f'closer. Return ONLY the new scenes as {{"scenes": [...]}}.\n\n'
                 f"Existing scenes (index: narration):\n{summary}\n\n"
                 f"Document text:\n{ctx.paper_text}"
             )
@@ -156,7 +141,7 @@ async def _fit_length(ctx: PipelineContext) -> None:
 
             prompt = (
                 f"{ctx.brief}"
-                f"Your scene list totals {total_ms} ms but the video must total about "
+                f"Your scene list totals {total_ms} ms; the video must total about "
                 f"{ctx.target_ms} ms — too LONG. Merge or drop the least important "
                 f"scenes and return the FULL revised list.\n\n"
                 f"Current scenes:\n{scenes_json(doc)}\n\nDocument text:\n{ctx.paper_text}"
@@ -188,92 +173,31 @@ async def _fit_length(ctx: PipelineContext) -> None:
         )
 
 
-async def _replan_if_still_short(ctx: PipelineContext) -> None:
-    """Escalation: fit rounds can only pad the plan. A cut under 70% of target
-    means the plan is too thin — planner writes NEW beats, designer renders
-    only those (one pass)."""
-    doc = ctx.doc
-    assert doc is not None
-    total_ms = sum(s.duration_ms for s in doc.scenes)
-    if total_ms >= ctx.target_ms * 0.7:
-        return
-    missing_ms = ctx.target_ms - total_ms
-    ctx.log(
-        AgentId.VISUAL_DESIGNER,
-        f"[Visual Designer] cut is still {total_ms / 1000:.0f}s vs "
-        f"{ctx.target_ms / 1000:.0f}s — sending back to the planner for the "
-        f"missing {missing_ms / 1000:.0f}s…",
-    )
-    summary = "\n".join(f"{i}: {(s.narration or '')[:60]}" for i, s in enumerate(doc.scenes))
-    try:
-        content = await ctx.call(
-            ctx.agents.planner,
-            f"{ctx.brief}"
-            f"The current cut covers only {total_ms} ms of a {ctx.target_ms} ms video. "
-            f"Plan about {max(2, missing_ms // 8000)} NEW beats (4000–9000 ms each, "
-            f"~{missing_ms} ms total) covering document material the existing scenes "
-            f"skip. Return ONLY the new beats.\n\n"
-            f"Existing scenes (index: narration):\n{summary}\n\n"
-            f"Document text:\n{ctx.paper_text}",
-            heartbeat=_HB,
-        )
-        extra = coerce_plan(content)
-    except Exception as exc:  # noqa: BLE001 - keep the cut
-        log.warning("length re-plan failed: %s", exc)
-        extra = None
-    if extra is None:
-        ctx.log(
-            AgentId.VISUAL_DESIGNER, "[Visual Designer] re-plan produced no beats — keeping cut"
-        )
-        return
-    new_scenes = []
-    for start in range(0, len(extra.beats), SCENE_BATCH):
-        chunk = extra.beats[start : start + SCENE_BATCH]
-        beat_lines = "\n".join(f"- {b.headline} — {b.summary} (~{b.duration_ms} ms)" for b in chunk)
-        try:
-            part = await _design(
-                ctx,
-                f"{ctx.brief}"
-                f"Design scenes for ONLY these new beats (they slot between your "
-                f"existing scenes and the closer). EXACTLY ONE scene per beat: return "
-                f'{len(chunk)} scenes as {{"scenes": [...]}}.\n\n'
-                f"New beats:\n{beat_lines}\n\nDocument text:\n{ctx.paper_text}",
-            )
-        except Exception as exc:  # noqa: BLE001 - keep the cut
-            log.warning("re-plan design failed: %s", exc)
-            continue
-        if part is not None and part.scenes:
-            new_scenes.extend(part.scenes)
-    if not new_scenes:
-        ctx.log(
-            AgentId.VISUAL_DESIGNER,
-            "[Visual Designer] re-plan produced no usable scenes — keeping cut",
-        )
-        return
-    for sc in new_scenes:
-        sc.index = None
-    if len(doc.scenes) > 1:
-        doc.scenes = doc.scenes[:-1] + new_scenes + doc.scenes[-1:]
-    else:
-        doc.scenes = doc.scenes + new_scenes
-    ctx.log(
-        AgentId.VISUAL_DESIGNER,
-        f"[Visual Designer] re-plan added {len(new_scenes)} scenes → "
-        f"{len(doc.scenes)} total, "
-        f"{sum(s.duration_ms for s in doc.scenes) / 1000:.0f}s",
-    )
-
-
 async def run(ctx: PipelineContext) -> None:
+    # Pass-through stages the UI sequence expects; their work now lives in
+    # the designer itself.
+    async with ctx.stage(AgentId.COMPREHENSION, "Comprehension"):
+        ctx.log(AgentId.COMPREHENSION, "[Comprehension] document text loaded for the designer")
+    async with ctx.stage(AgentId.PLANNER, "Planner"):
+        n = scene_budget(ctx.target_ms)
+        ctx.log(
+            AgentId.PLANNER,
+            f"[Planner] scene budget: {n} scenes for the {ctx.target_min} min target",
+        )
+    async with ctx.stage(AgentId.SCRIPTWRITER, "Scriptwriter"):
+        ctx.log(
+            AgentId.SCRIPTWRITER,
+            "[Scriptwriter] narration is written per scene by the designer",
+        )
+
     async with ctx.stage(AgentId.VISUAL_DESIGNER, "Visual Designer"):
-        if ctx.plan is not None and len(ctx.plan.beats) > SCENE_BATCH:
-            ctx.doc = await _design_batched(ctx)
-        else:
-            ctx.doc = await _design_single_shot(ctx)
-        if ctx.doc is None or not ctx.doc.scenes:
+        ctx.doc = await _design_batches(ctx, scene_budget(ctx.target_ms))
+        if not ctx.doc.scenes:
             ctx.log(AgentId.VISUAL_DESIGNER, "[Visual Designer] produced no valid scenes")
             raise RuntimeError("visual designer produced no scenes")
-        ctx.log(AgentId.VISUAL_DESIGNER, f"[Visual Designer] produced {len(ctx.doc.scenes)} scenes")
+        ctx.log(
+            AgentId.VISUAL_DESIGNER,
+            f"[Visual Designer] produced {len(ctx.doc.scenes)} scenes",
+        )
         await _fit_length(ctx)
-        await _replan_if_still_short(ctx)
         ctx.scenes_payload = dump_scenes(ctx.doc, ctx.figure_map)

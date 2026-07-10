@@ -17,13 +17,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from vyakhya.agents.pipeline import AGENT_SEQUENCE, _event
-from vyakhya.agents.schemas import GenDocument, ResearchNotes, StoryPlan
+from vyakhya.agents.schemas import GenDocument
 from vyakhya.core.logging import get_logger
 from vyakhya.enums import AgentId, AgentStatus, PipelineEventType
 
 log = get_logger(__name__)
 
-# Beats per designer call: scene JSON is heavy (~1.5k output tokens of
+# Scenes per designer call: scene JSON is heavy (~1.5k output tokens of
 # html+css per scene); more per completion risks truncation.
 SCENE_BATCH = 6
 # Final cut must land within this fraction of the requested length.
@@ -34,9 +34,8 @@ DURATION_TOLERANCE = 0.15
 class Tunables:
     """Agent-settings knobs (Settings → Agents tab)."""
 
-    verifier_rounds: int = 3
-    visual_max_rounds: int = 8
-    visual_stall_rounds: int = 2
+    review_rounds: int = 8
+    review_stall_rounds: int = 2
     length_fit_rounds: int = 3
 
 
@@ -58,8 +57,6 @@ class PipelineContext:
     emit: Callable[[dict], None]
 
     # Mutable artifacts, filled in by the steps.
-    research: ResearchNotes | None = None
-    plan: StoryPlan | None = None
     doc: GenDocument | None = None
     scenes_payload: list[dict] = field(default_factory=list)
     _stages_done: int = 0

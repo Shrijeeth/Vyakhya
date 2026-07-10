@@ -95,49 +95,8 @@ class GenDocument(BaseModel):
     scenes: list[GenScene]
 
 
-# ── Story plan (the planner's output) ──────────────────────────────────────────
-class PlanBeat(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    # When replacing an existing scene, the 0-based index it replaces.
-    index: int | None = None
-    headline: str
-    summary: str = ""
-    duration_ms: int = Field(default=9000, alias="durationMs")
-
-
-class StoryPlan(BaseModel):
-    beats: list[PlanBeat] = Field(default_factory=list)
-
-
-# ── Research notes (the researcher's output) ───────────────────────────────────
-class ResearchNotes(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    summary: str = ""
-    key_points: list[str] = Field(default_factory=list, alias="keyPoints")
-    analogies: list[str] = Field(default_factory=list)
-
-
-# ── Verifier + visual review reports ───────────────────────────────────────────
-class GenVerifierFlag(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    claim: str
-    source_span: str = Field(alias="sourceSpan")
-    level: Literal["pass", "warn", "fail"]
-    note: str | None = None
-
-
-class VerifierReport(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    approved: bool
-    flags: list[GenVerifierFlag] = Field(default_factory=list)
-    revision_notes: str = Field(default="", alias="revisionNotes")
-
-
-class DesignIssue(BaseModel):
+# ── Review report ──────────────────────────────────────────────────────────────
+class ReviewIssue(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     scene_index: int = Field(alias="sceneIndex")
@@ -146,11 +105,11 @@ class DesignIssue(BaseModel):
     severity: Literal["minor", "major"] = "major"
 
 
-class DesignReviewReport(BaseModel):
+class ReviewReport(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     approved: bool
-    issues: list[DesignIssue] = Field(default_factory=list)
+    issues: list[ReviewIssue] = Field(default_factory=list)
 
 
 # ── Parsing helpers ────────────────────────────────────────────────────────────
@@ -235,22 +194,6 @@ def coerce_document(content: object) -> GenDocument | None:
         except Exception as exc:  # noqa: BLE001 - drop just this scene
             log.warning("dropping invalid scene %d: %s", i, exc)
     return GenDocument(scenes=scenes) if scenes else None
-
-
-def coerce_plan(content: object) -> StoryPlan | None:
-    """Normalize planner output to a StoryPlan (model, dict, or bare list)."""
-    if isinstance(content, StoryPlan):
-        return content if content.beats else None
-    data = extract_data(content)
-    if isinstance(data, list):
-        data = {"beats": data}
-    if not isinstance(data, dict):
-        return None
-    try:
-        plan = StoryPlan.model_validate(data)
-    except Exception:  # noqa: BLE001 - a bad plan is just skipped
-        return None
-    return plan if plan.beats else None
 
 
 def coerce_model(content: object, model_cls: type) -> object | None:

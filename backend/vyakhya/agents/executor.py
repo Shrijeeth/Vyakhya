@@ -125,9 +125,8 @@ class AgnoPipelineExecutor:
                 figures=list(project.figures or []),
                 paper_file_url=project.paper_file_url,
                 tunables=Tunables(
-                    verifier_rounds=aset.verifier_max_rounds,
-                    visual_max_rounds=aset.visual_max_rounds,
-                    visual_stall_rounds=aset.visual_stall_rounds,
+                    review_rounds=aset.visual_max_rounds,
+                    review_stall_rounds=aset.visual_stall_rounds,
                     length_fit_rounds=aset.length_fit_rounds,
                 ),
                 agents=agents,
