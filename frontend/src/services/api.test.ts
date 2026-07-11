@@ -83,7 +83,7 @@ describe("HTTP endpoints", () => {
 describe("static client metadata", () => {
   it("agent sequence runs ingestor → assembler with a verifier stage", () => {
     const seq = getAgentSequence();
-    expect(seq).toHaveLength(5);
+    expect(seq).toHaveLength(7);
     expect(seq[0].id).toBe("ingestor");
     expect(seq.at(-1)?.id).toBe("assembler");
     expect(seq.map((a) => a.id)).toContain("verifier");

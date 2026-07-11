@@ -154,9 +154,19 @@ const ROLES: {
   hint: string;
 }[] = [
   {
+    id: "planner",
+    label: "Video Idea",
+    hint: "Turns the document + your brief into one detailed video idea",
+  },
+  {
+    id: "scriptwriter",
+    label: "Scene Creator",
+    hint: "Writes the video scene by scene from the idea (narration, visuals, animation)",
+  },
+  {
     id: "visual_designer",
     label: "Visual Designer",
-    hint: "Writes the story and designs every frame — assign your strongest model",
+    hint: "Builds each scene description as an animated frame — assign your strongest model",
   },
   {
     id: "verifier",

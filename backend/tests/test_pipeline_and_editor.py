@@ -15,13 +15,13 @@ def test_agent_sequence_order_and_length():
     assert ids[0] is AgentId.INGESTOR
     assert ids[-1] is AgentId.ASSEMBLER
     assert AgentId.VERIFIER in ids
-    assert len(AGENT_SEQUENCE) == 5
+    assert len(AGENT_SEQUENCE) == 7
 
 
 def test_get_agent_sequence_dtos():
     seq = get_agent_sequence()
-    assert len(seq) == 5
-    assert seq[1].label == "Visual Designer"
+    assert len(seq) == 7
+    assert seq[1].label == "Video Idea"
 
 
 async def test_simulated_executor_emits_status_flags_and_done():

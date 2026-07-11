@@ -133,4 +133,11 @@ def test_pipeline_workflow_builds():
         emit=lambda e: None,
     )
     wf = build_pipeline_workflow(ctx)
-    assert [s.name for s in wf.steps] == ["ingest", "design", "review", "assemble"]
+    assert [s.name for s in wf.steps] == [
+        "ingest",
+        "idea",
+        "outline",
+        "design",
+        "review",
+        "assemble",
+    ]

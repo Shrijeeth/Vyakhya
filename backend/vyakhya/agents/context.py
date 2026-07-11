@@ -57,6 +57,8 @@ class PipelineContext:
     emit: Callable[[dict], None]
 
     # Mutable artifacts, filled in by the steps.
+    idea: str = ""
+    outline: list[str] = field(default_factory=list)  # scene descriptions, in order
     doc: GenDocument | None = None
     scenes_payload: list[dict] = field(default_factory=list)
     _stages_done: int = 0

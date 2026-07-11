@@ -95,14 +95,33 @@ class GenDocument(BaseModel):
     scenes: list[GenScene]
 
 
+# ── Video idea + scene specs (the writing agents' outputs) ─────────────────────
+class VideoIdea(BaseModel):
+    idea: str = ""
+
+
+class SceneSpec(BaseModel):
+    """One scene description from the Scene Creator (markdown)."""
+
+    scene: str = ""
+
+
 # ── Review report ──────────────────────────────────────────────────────────────
 class ReviewIssue(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     scene_index: int = Field(alias="sceneIndex")
+    # Which stage must fix it: the Scene Creator (concept) or the Designer
+    # (execution).
+    stage: Literal["scene", "design"] = "design"
     problem: str
     fix: str
     severity: Literal["minor", "major"] = "major"
+
+    @field_validator("stage", mode="before")
+    @classmethod
+    def _lenient_stage(cls, v: object) -> object:
+        return v if v in ("scene", "design") else "design"
 
 
 class ReviewReport(BaseModel):

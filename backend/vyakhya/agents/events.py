@@ -15,6 +15,8 @@ from vyakhya.enums import AgentId, PipelineEventType
 
 AGENT_SEQUENCE: list[tuple[AgentId, str]] = [
     (AgentId.INGESTOR, "Ingestor"),
+    (AgentId.PLANNER, "Video Idea"),
+    (AgentId.SCRIPTWRITER, "Scene Creator"),
     (AgentId.VISUAL_DESIGNER, "Visual Designer"),
     (AgentId.NARRATOR, "Narrator"),
     (AgentId.VERIFIER, "Reviewer"),
